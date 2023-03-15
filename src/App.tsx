@@ -1,4 +1,4 @@
-import { useState, createRef } from "react";
+import { useState, createRef, useEffect } from "react";
 import { Tab, RadioGroup, Disclosure } from "@headlessui/react";
 import "./App.css";
 
@@ -35,62 +35,78 @@ const defaultRegion: Region = {
   encounterTable: [],
 };
 
+const emptyRegion: Region = {
+  id: "",
+  name: "Region",
+  encounterTable: [],
+};
+
 function App() {
-  const [terrainCsv, setTerrainCsv] = useState("");
   const [terrainMatrix, setTerrainMatrix] = useState([[""]]);
   const [terrainDefinitions, setTerrainDefinitions] = useState([]);
-  const [regionsCsv, setRegionsCsv] = useState("");
   const [regionsMatrix, setRegionsMatrix] = useState([[""]]);
-  const [regionDefinitions, setRegionDefinitions] = useState([defaultRegion]);
-  const [partyAction, setPartyAction] = useState("travel");
+  const [regionDefinitions, setRegionDefinitions] = useState([]);
 
   const [selected, setSelected] = useState([-1, -1]);
   const [destination, setDestination] = useState([-1, -1]);
+  const [partyAction, setPartyAction] = useState("travel");
 
-  let config = {
-    terrainCsv: "",
-    regionCsv: "",
-    terrainDefinitions: [
-      {
-        id: "7",
-        name: "Ocean",
-        speedMods: [1, 1, 1],
-        styles: "bg-blue-500 hover:bg-blue-400 transition-all",
-      },
-      {
-        id: "0",
-        name: "Plains",
-        speedMods: [1, 1, 0.75],
-        styles: "bg-green-500 hover:bg-green-400 transition-all",
-      },
-      {
-        id: "5",
-        name: "Mountains",
-        speedMods: [0.75, 0.75, 0.5],
-        styles: "bg-slate-500 hover:bg-slate-600 transition-all",
-      },
-    ],
-    regions: [
-      {
-        id: "0",
-        name: "Baby Woods",
-        encounterTable: [
-          [1, "bears"],
-          [2, "bees"],
-          [3, "Brad Pitt"],
-        ],
-      },
-      {
-        id: "1",
-        name: "Doom Cliffs",
-        speedMods: [1, 1, 0.75],
-        encounterTable: [
-          [1, "goose"],
-          [2, "golf"],
-          [3, "Garfield"],
-        ],
-      },
-    ],
+  const exportConfigJson = () => {
+    let obj = {
+      terrainMatrix: terrainMatrix,
+      terrainDefinitions: terrainDefinitions,
+      regionsMatrix: regionsMatrix,
+      regionDefinitions: regionDefinitions,
+    };
+    let str = JSON.stringify(obj);
+    let blob = new Blob([str], { type: "text/json;charset=utf-8" });
+    let url = window.URL || window.webkitURL;
+    let link = url.createObjectURL(blob);
+    let a = document.createElement("a");
+    a.download = "config.json";
+    a.href = link;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const importConfigJson: React.ChangeEventHandler<HTMLInputElement> = (
+    event
+  ) => {
+    event.preventDefault();
+    if (event.target.files) {
+      let file = event.target.files[0];
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        if (e.target) {
+          const text = e.target.result;
+          if (typeof text === "string") {
+            let obj = JSON.parse(text);
+            setTerrainMatrix(obj.terrainMatrix);
+            setTerrainDefinitions(obj.terrainDefinitions);
+            setRegionsMatrix(obj.regionsMatrix);
+            setRegionDefinitions(obj.regionDefinitions);
+            localStorage.setItem(
+              "terrainMatrix",
+              JSON.stringify(obj.terrainMatrix)
+            );
+            localStorage.setItem(
+              "terrainDefinitions",
+              JSON.stringify(obj.terrainDefinitions)
+            );
+            localStorage.setItem(
+              "regionMatrix",
+              JSON.stringify(obj.regionsMatrix)
+            );
+            localStorage.setItem(
+              "regionDefinitions",
+              JSON.stringify(obj.regionDefinitions)
+            );
+          }
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   const getTerrainById = (id: String) => {
@@ -136,6 +152,7 @@ function App() {
           let arr = csvStringToMatrix(text.trim());
           invertMatrix(arr);
           setTerrainMatrix(arr);
+          localStorage.setItem("terrainMatrix", JSON.stringify(arr));
         }
       }
     };
@@ -151,6 +168,7 @@ function App() {
           let arr = csvStringToMatrix(text.trim());
           invertMatrix(arr);
           setRegionsMatrix(arr);
+          localStorage.setItem("regionsMatrix", JSON.stringify(arr));
         }
       }
     };
@@ -190,6 +208,7 @@ function App() {
         if (typeof text === "string") {
           const json: Terrain[] = JSON.parse(text);
           setTerrainDefinitions(json);
+          localStorage.setItem("terrainDefinitions", JSON.stringify(json));
         }
       }
     };
@@ -213,11 +232,39 @@ function App() {
         if (typeof text === "string") {
           const json: Region[] = JSON.parse(text);
           setRegionDefinitions(json);
+          localStorage.setItem("regionDefinitions", JSON.stringify(json));
         }
       }
     };
     reader.readAsText(file);
   };
+
+  useEffect(() => {
+    if (terrainMatrix[0][0] === "") {
+      let item = localStorage.getItem("terrainMatrix");
+      if (item != null) {
+        setTerrainMatrix(JSON.parse(item));
+      }
+    }
+    if (terrainDefinitions.length === 0) {
+      let item = localStorage.getItem("terrainDefinitions");
+      if (item != null) {
+        setTerrainDefinitions(JSON.parse(item));
+      }
+    }
+    if (regionsMatrix[0][0] === "") {
+      let item = localStorage.getItem("regionsMatrix");
+      if (item != null) {
+        setRegionsMatrix(JSON.parse(item));
+      }
+    }
+    if (regionDefinitions.length === 0) {
+      let item = localStorage.getItem("regionDefinitions");
+      if (item != null) {
+        setRegionDefinitions(JSON.parse(item));
+      }
+    }
+  });
 
   return (
     <div className="App">
@@ -353,6 +400,15 @@ function App() {
           </Tab.Panel>
           <Tab.Panel>
             <div>
+              <div className="mt-2 flex items-center justify-center gap-4">
+                <button
+                  onClick={exportConfigJson}
+                  className="px-2 border rounded hover:bg-gray-100 transition-all"
+                >
+                  Export
+                </button>
+                <input type="file" onChange={importConfigJson} />
+              </div>
               <div className="max-w-sm mx-auto mt-2">
                 <h2 className="font-bold">Terrain Layer</h2>
                 <input type="file" onChange={terrainOnChange} />
@@ -379,6 +435,10 @@ function App() {
                               newObj.name = e.target.value;
                               newDefs[i] = newObj;
                               setTerrainDefinitions(newDefs);
+                              localStorage.setItem(
+                                "terrainDefinitions",
+                                JSON.stringify(newDefs)
+                              );
                             }}
                           />
                         </span>
@@ -395,6 +455,10 @@ function App() {
                                 newObj.id = e.target.value;
                                 newDefs[i] = newObj;
                                 setTerrainDefinitions(newDefs);
+                                localStorage.setItem(
+                                  "terrainDefinitions",
+                                  JSON.stringify(newDefs)
+                                );
                               }}
                             />
                           </span>
@@ -405,6 +469,10 @@ function App() {
                             let newDefs = [...terrainDefinitions];
                             newDefs.splice(i, 1);
                             setTerrainDefinitions(newDefs);
+                            localStorage.setItem(
+                              "terrainDefinitions",
+                              JSON.stringify(newDefs)
+                            );
                           }}
                         >
                           <svg
@@ -434,6 +502,10 @@ function App() {
                                     newObj.speedMods[0] = +e.target.value;
                                     newDefs[i] = newObj;
                                     setTerrainDefinitions(newDefs);
+                                    localStorage.setItem(
+                                      "terrainDefinitions",
+                                      JSON.stringify(newDefs)
+                                    );
                                   }}
                                 />
                               </span>
@@ -454,6 +526,10 @@ function App() {
                                     newObj.speedMods[1] = +e.target.value;
                                     newDefs[i] = newObj;
                                     setTerrainDefinitions(newDefs);
+                                    localStorage.setItem(
+                                      "terrainDefinitions",
+                                      JSON.stringify(newDefs)
+                                    );
                                   }}
                                 />
                               </span>
@@ -474,6 +550,10 @@ function App() {
                                     newObj.speedMods[2] = +e.target.value;
                                     newDefs[i] = newObj;
                                     setTerrainDefinitions(newDefs);
+                                    localStorage.setItem(
+                                      "terrainDefinitions",
+                                      JSON.stringify(newDefs)
+                                    );
                                   }}
                                 />
                               </span>
@@ -497,6 +577,10 @@ function App() {
                               newObj.styles = e.target.value;
                               newDefs[i] = newObj;
                               setTerrainDefinitions(newDefs);
+                              localStorage.setItem(
+                                "terrainDefinitions",
+                                JSON.stringify(newDefs)
+                              );
                             }}
                           />
                         </div>
@@ -511,6 +595,10 @@ function App() {
                         let newDefs = [...terrainDefinitions];
                         newDefs = newDefs.concat(emptyTerrain);
                         setTerrainDefinitions(newDefs);
+                        localStorage.setItem(
+                          "terrainDefinitions",
+                          JSON.stringify(newDefs)
+                        );
                       }}
                     >
                       <svg
@@ -538,160 +626,209 @@ function App() {
                 <div>
                   <input type="file" onChange={regionDefOnChange} />
                 </div>
-                {regionDefinitions[0].id != "-1" ? (
-                  <div className="max-w-lg mx-auto mt-4 flex flex-wrap">
-                    {regionDefinitions.map((region, i) => (
-                      <div className="w-64 rounded shadow">
-                        <div className="space-x-3 py-2 px-3 flex items-center justify-between">
-                          <span className="w-max font-bold">
-                            <input
-                              className="w-24"
-                              value={region.name}
-                              type="text"
-                              onChange={(e) => {
-                                let newDefs = [...regionDefinitions];
-                                let newObj = { ...newDefs[i] };
-                                newObj.name = e.target.value;
-                                newDefs[i] = newObj;
-                                setRegionDefinitions(newDefs);
-                              }}
-                            />
-                          </span>
-                          <span className="text-sm">
-                            ID:{" "}
-                            <input
-                              className="w-6"
-                              value={region.id}
-                              type="text"
-                              onChange={(e) => {
-                                let newDefs = [...regionDefinitions];
-                                let newObj = { ...newDefs[i] };
-                                newObj.id = e.target.value;
-                                newDefs[i] = newObj;
-                                setRegionDefinitions(newDefs);
-                              }}
-                            />
-                          </span>
-                          <button
-                            className="w-max bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
-                            onClick={() => {
+
+                <div className="max-w-lg mx-auto mt-4 flex flex-wrap">
+                  {regionDefinitions.map((region, i) => (
+                    <div className="w-64 rounded shadow">
+                      <div className="space-x-3 py-2 px-3 flex items-center justify-between">
+                        <span className="w-max font-bold">
+                          <input
+                            className="w-24"
+                            value={region.name}
+                            type="text"
+                            onChange={(e) => {
                               let newDefs = [...regionDefinitions];
-                              newDefs.splice(i, 1);
+                              let newObj = { ...newDefs[i] };
+                              newObj.name = e.target.value;
+                              newDefs[i] = newObj;
                               setRegionDefinitions(newDefs);
+                              localStorage.setItem(
+                                "regionDefinitions",
+                                JSON.stringify(newDefs)
+                              );
                             }}
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                            >
-                              <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
-                            </svg>
-                          </button>
-                        </div>
-                        <table className="w-full">
-                          {region.encounterTable.map((encounter, j) => (
-                            <tr
-                              className={`${j % 2 === 0 ? "bg-gray-100" : ""}`}
-                            >
-                              <th className="px-1">{j + 1}</th>
-                              <td>
-                                <input
-                                  className="w-full bg-transparent "
-                                  value={encounter}
-                                  type="text"
-                                  onChange={(e) => {
-                                    let newDefs = [...regionDefinitions];
-                                    let newObj = { ...newDefs[i] };
-                                    let newTab = [...newObj.encounterTable];
-                                    newTab[j] = e.target.value;
-                                    newObj.encounterTable = newTab;
-                                    newDefs[i] = newObj;
-                                    setRegionDefinitions(newDefs);
-                                  }}
-                                />
-                              </td>
-                              <td>
-                                <button
-                                  className="bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
-                                  onClick={() => {
-                                    let newDefs = [...regionDefinitions];
-                                    let newObj = { ...newDefs[i] };
-                                    let newTab = [...newObj.encounterTable];
-                                    newTab.splice(j, 1);
-                                    newObj.encounterTable = newTab;
-                                    newDefs[i] = newObj;
-                                    setRegionDefinitions(newDefs);
-                                  }}
-                                >
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="12"
-                                    height="12"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
-                                  </svg>
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                          <tr
-                            className={`${
-                              regionDefinitions[i].encounterTable.length % 2 ===
-                              0
-                                ? "bg-gray-100"
-                                : ""
-                            }`}
-                          >
-                            <th className="px-1">
-                              {regionDefinitions[i].encounterTable.length + 1}
-                            </th>
-                            <td>
-                              <div className="text-left">
-                                Roll 2 and combine them.
-                              </div>
-                            </td>
-                            <td />
-                          </tr>
-                        </table>
+                          />
+                        </span>
+                        <span className="text-sm">
+                          ID:{" "}
+                          <input
+                            className="w-6"
+                            value={region.id}
+                            type="text"
+                            onChange={(e) => {
+                              let newDefs = [...regionDefinitions];
+                              let newObj = { ...newDefs[i] };
+                              newObj.id = e.target.value;
+                              newDefs[i] = newObj;
+                              setRegionDefinitions(newDefs);
+                              localStorage.setItem(
+                                "regionDefinitions",
+                                JSON.stringify(newDefs)
+                              );
+                            }}
+                          />
+                        </span>
                         <button
-                          className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded-b py-2"
+                          className="w-max bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
                           onClick={() => {
                             let newDefs = [...regionDefinitions];
-                            let newObj = { ...newDefs[i] };
-                            let newTab = [...newObj.encounterTable];
-                            newTab = newTab.concat("");
-                            newTab.concat("");
-                            newObj.encounterTable = newTab;
-                            newDefs[i] = newObj;
+                            newDefs.splice(i, 1);
                             setRegionDefinitions(newDefs);
+                            localStorage.setItem(
+                              "regionDefinitions",
+                              JSON.stringify(newDefs)
+                            );
                           }}
                         >
                           <svg
-                            className="w-full mx-auto"
-                            clip-rule="evenodd"
-                            fill-rule="evenodd"
-                            stroke-linejoin="round"
-                            stroke-miterlimit="2"
-                            height={12}
-                            width={12}
-                            viewBox="0 0 24 24"
                             xmlns="http://www.w3.org/2000/svg"
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
                           >
-                            <path
-                              d="m11 11h-7.25c-.414 0-.75.336-.75.75s.336.75.75.75h7.25v7.25c0 .414.336.75.75.75s.75-.336.75-.75v-7.25h7.25c.414 0 .75-.336.75-.75s-.336-.75-.75-.75h-7.25v-7.25c0-.414-.336-.75-.75-.75s-.75.336-.75.75z"
-                              fill-rule="nonzero"
-                            />
+                            <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
                           </svg>
                         </button>
                       </div>
-                    ))}
+                      <table className="w-full">
+                        {region.encounterTable.map((encounter, j) => (
+                          <tr className={`${j % 2 === 0 ? "bg-gray-100" : ""}`}>
+                            <th className="px-1">{j + 1}</th>
+                            <td>
+                              <input
+                                className="w-full bg-transparent "
+                                value={encounter}
+                                type="text"
+                                onChange={(e) => {
+                                  let newDefs = [...regionDefinitions];
+                                  let newObj = { ...newDefs[i] };
+                                  let newTab = [...newObj.encounterTable];
+                                  newTab[j] = e.target.value;
+                                  newObj.encounterTable = newTab;
+                                  newDefs[i] = newObj;
+                                  setRegionDefinitions(newDefs);
+                                  localStorage.setItem(
+                                    "regionDefinitions",
+                                    JSON.stringify(newDefs)
+                                  );
+                                }}
+                              />
+                            </td>
+                            <td>
+                              <button
+                                className="bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
+                                onClick={() => {
+                                  let newDefs = [...regionDefinitions];
+                                  let newObj = { ...newDefs[i] };
+                                  let newTab = [...newObj.encounterTable];
+                                  newTab.splice(j, 1);
+                                  newObj.encounterTable = newTab;
+                                  newDefs[i] = newObj;
+                                  setRegionDefinitions(newDefs);
+                                  localStorage.setItem(
+                                    "regionDefinitions",
+                                    JSON.stringify(newDefs)
+                                  );
+                                }}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
+                                </svg>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        <tr
+                          className={`${
+                            regionDefinitions[i].encounterTable.length % 2 === 0
+                              ? "bg-gray-100"
+                              : ""
+                          }`}
+                        >
+                          <th className="px-1">
+                            {regionDefinitions[i].encounterTable.length + 1}
+                          </th>
+                          <td>
+                            <div className="text-left">
+                              Roll 2 and combine them.
+                            </div>
+                          </td>
+                          <td />
+                        </tr>
+                      </table>
+                      <button
+                        className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded-b py-2"
+                        onClick={() => {
+                          let newDefs = [...regionDefinitions];
+                          let newObj = { ...newDefs[i] };
+                          let newTab = [...newObj.encounterTable];
+                          newTab = newTab.concat("");
+                          newTab.concat("");
+                          newObj.encounterTable = newTab;
+                          newDefs[i] = newObj;
+                          setRegionDefinitions(newDefs);
+                          localStorage.setItem(
+                            "regionDefinitions",
+                            JSON.stringify(newDefs)
+                          );
+                        }}
+                      >
+                        <svg
+                          className="w-full mx-auto"
+                          clip-rule="evenodd"
+                          fill-rule="evenodd"
+                          stroke-linejoin="round"
+                          stroke-miterlimit="2"
+                          height={12}
+                          width={12}
+                          viewBox="0 0 24 24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="m11 11h-7.25c-.414 0-.75.336-.75.75s.336.75.75.75h7.25v7.25c0 .414.336.75.75.75s.75-.336.75-.75v-7.25h7.25c.414 0 .75-.336.75-.75s-.336-.75-.75-.75h-7.25v-7.25c0-.414-.336-.75-.75-.75s-.75.336-.75.75z"
+                            fill-rule="nonzero"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                  <div className="w-64 h-32 rounded shadow flex items-center flex-col">
+                    <button
+                      className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded py-2 flex-grow"
+                      onClick={() => {
+                        let newDefs = [...regionDefinitions];
+                        newDefs = newDefs.concat(emptyRegion);
+                        setRegionDefinitions(newDefs);
+                        localStorage.setItem(
+                          "regionDefinitions",
+                          JSON.stringify(newDefs)
+                        );
+                      }}
+                    >
+                      <svg
+                        className="w-full mx-auto"
+                        clip-rule="evenodd"
+                        fill-rule="evenodd"
+                        stroke-linejoin="round"
+                        stroke-miterlimit="2"
+                        height={24}
+                        width={24}
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="m11 11h-7.25c-.414 0-.75.336-.75.75s.336.75.75.75h7.25v7.25c0 .414.336.75.75.75s.75-.336.75-.75v-7.25h7.25c.414 0 .75-.336.75-.75s-.336-.75-.75-.75h-7.25v-7.25c0-.414-.336-.75-.75-.75s-.75.336-.75.75z"
+                          fill-rule="nonzero"
+                        />
+                      </svg>
+                    </button>
                   </div>
-                ) : (
-                  ""
-                )}
+                </div>
               </div>
             </div>
           </Tab.Panel>
