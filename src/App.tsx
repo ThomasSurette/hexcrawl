@@ -1,55 +1,115 @@
 import { useState, createRef, useEffect } from "react";
-import { Tab, RadioGroup, Disclosure } from "@headlessui/react";
+import {
+  Tab,
+  RadioGroup,
+  Disclosure,
+  Listbox,
+  Dialog,
+  Switch,
+} from "@headlessui/react";
+import { DateTimeField, LocalizationProvider, deDE } from "@mui/x-date-pickers";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import dayjs, * as dayJs from "dayjs";
 import "./App.css";
 
 interface Terrain {
   id: string;
   name: string;
   speedMods: number[];
+  navigationDC: number;
+  forageDC: number;
   styles: string;
 }
 
 interface Region {
   id: string;
   name: string;
+  encounterRate: number;
   encounterTable: string[];
+}
+
+interface Condition {
+  name: string;
+  speedMod: number;
+  active: boolean;
 }
 
 const defaultTerrain: Terrain = {
   id: "-1",
-  name: "N/A",
-  speedMods: [1, 1, 1],
+  name: "",
+  speedMods: [1, 1],
+  navigationDC: 0,
+  forageDC: 0,
   styles: "",
 };
 
 const emptyTerrain: Terrain = {
   id: "",
   name: "Terrain",
-  speedMods: [1, 1, 1],
+  speedMods: [1, 1],
+  navigationDC: 0,
+  forageDC: 0,
   styles: "bg-blue-500 hover:bg-blue-400",
 };
 
 const defaultRegion: Region = {
   id: "-1",
-  name: "N/A",
+  name: "",
   encounterTable: [],
+  encounterRate: 0,
 };
 
 const emptyRegion: Region = {
   id: "",
   name: "Region",
   encounterTable: [],
+  encounterRate: 16,
+};
+
+const emptyCondition: Condition = {
+  name: "Condition",
+  speedMod: 1,
+  active: false,
 };
 
 function App() {
-  const [terrainMatrix, setTerrainMatrix] = useState([[""]]);
-  const [terrainDefinitions, setTerrainDefinitions] = useState([]);
-  const [regionsMatrix, setRegionsMatrix] = useState([[""]]);
-  const [regionDefinitions, setRegionDefinitions] = useState([]);
+  const [terrainMatrix, setTerrainMatrix] = useState<string[][]>([[""]]);
+  const [terrainDefinitions, setTerrainDefinitions] = useState<Terrain[]>([]);
+  const [regionsMatrix, setRegionsMatrix] = useState<string[][]>([[""]]);
+  const [regionDefinitions, setRegionDefinitions] = useState<Region[]>([]);
+  const [conditionDefinitions, setConditionDefinitions] = useState<Condition[]>(
+    []
+  );
 
-  const [selected, setSelected] = useState([-1, -1]);
-  const [destination, setDestination] = useState([-1, -1]);
-  const [partyAction, setPartyAction] = useState("travel");
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+
+  const [dateTime, setDateTime] = useState<dayJs.Dayjs>(dayJs(Date.now()));
+  const [selected, setSelected] = useState<number[]>([-1, -1]);
+  const [adjacentHexes, setAdjacentHexes] = useState<number[][]>();
+  const [hexPosition, setHexPosition] = useState<string>("far");
+
+  const [destination, setDestination] = useState<number[]>();
+  const [partyAction, setPartyAction] = useState<string>("travel");
+  const [travelSpeed, setTravelSpeed] = useState<string>("normal");
+  const [roadType, setRoadType] = useState<string>("pathless");
+  const [forceLocation, setForceLocation] = useState<boolean>(false);
+  const [searchForceLocation, setSearchForceLocation] =
+    useState<boolean>(false);
+  const [searchForceEncounter, setSearchForceEncounter] =
+    useState<boolean>(false);
+
+  const [tempDistance, setTempDistance] = useState<number>(0);
+  const [travelDistance, setTravelDistance] = useState<number>(0);
+  const [travelTime, setTravelTime] = useState<number>(0);
+  const [hexProgress, setHexProgress] = useState<number>(0);
+  const [dailyTravelHours, setDailyTravelHours] = useState<number>(0);
+
+  const [restTime, setRestTime] = useState<number>(0);
+  const [searchTime, setSearchTime] = useState<number>(0);
+
+  const [modalTitle, setModalTitle] = useState<string>("Modal Title");
+  const [modalDescription, setModalDescription] =
+    useState<string>("Modal Description");
 
   const exportConfigJson = () => {
     let obj = {
@@ -57,6 +117,7 @@ function App() {
       terrainDefinitions: terrainDefinitions,
       regionsMatrix: regionsMatrix,
       regionDefinitions: regionDefinitions,
+      conditionDefinitions: conditionDefinitions,
     };
     let str = JSON.stringify(obj);
     let blob = new Blob([str], { type: "text/json;charset=utf-8" });
@@ -86,6 +147,7 @@ function App() {
             setTerrainDefinitions(obj.terrainDefinitions);
             setRegionsMatrix(obj.regionsMatrix);
             setRegionDefinitions(obj.regionDefinitions);
+            setConditionDefinitions(obj.conditionDefinitions);
             localStorage.setItem(
               "terrainMatrix",
               JSON.stringify(obj.terrainMatrix)
@@ -101,6 +163,10 @@ function App() {
             localStorage.setItem(
               "regionDefinitions",
               JSON.stringify(obj.regionDefinitions)
+            );
+            localStorage.setItem(
+              "conditionDefinitions",
+              JSON.stringify(obj.conditionDefinitions)
             );
           }
         }
@@ -239,6 +305,283 @@ function App() {
     reader.readAsText(file);
   };
 
+  const updateAdjacent = (selected: number[]) => {
+    setDestination(undefined);
+    const col = selected[0];
+    const row = selected[1];
+    let arr = [];
+    let destCol = -1;
+    let destRow = -1;
+
+    if (col % 2 === 0) {
+      destCol = col - 1;
+      destRow = row - 1;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+
+      destCol = col;
+      destRow = row - 1;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+
+      destCol = col + 1;
+      destRow = row - 1;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+
+      destCol = col - 1;
+      destRow = row;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+
+      destCol = col;
+      destRow = row + 1;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+
+      destCol = col + 1;
+      destRow = row;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+    }
+
+    if (col % 2 === 1) {
+      destCol = col - 1;
+      destRow = row;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+
+      destCol = col;
+      destRow = row - 1;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+
+      destCol = col + 1;
+      destRow = row;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+
+      destCol = col - 1;
+      destRow = row + 1;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+
+      destCol = col;
+      destRow = row + 1;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+
+      destCol = col + 1;
+      destRow = row + 1;
+      if (
+        destCol >= 0 &&
+        destCol < terrainMatrix.length &&
+        destRow >= 0 &&
+        destRow < terrainMatrix[0].length
+      ) {
+        arr.push([destCol, destRow]);
+      }
+    }
+    setAdjacentHexes(arr);
+  };
+
+  const getWatch = () => {
+    return Math.floor(dateTime.hour() / 4) + 1;
+  };
+
+  const timeToNextWatch = () => {
+    const watch = getWatch();
+    const nextWatch = watch + 1;
+    let nextWatchTime = dayJs(dateTime);
+    nextWatchTime = nextWatchTime
+      .set("hour", (nextWatch - 1) * 4)
+      .set("minute", 0)
+      .set("second", 0);
+    console.log(dateTime);
+    console.log(nextWatchTime);
+    return minToHrMin(nextWatchTime.diff(dateTime, "minute") + 1);
+  };
+
+  const minToHrMin = (min: number) => {
+    const hours = Math.floor(min / 60);
+    const minutes = min % 60;
+    return [hours, minutes];
+  };
+
+  const handleGo = () => {
+    let newTime = dateTime.add(travelTime, "hour");
+    let newProgress = hexProgress + travelDistance;
+    let hexLength = hexPosition === "near" ? 6 : 12;
+
+    setDateTime(newTime);
+    setDailyTravelHours(dailyTravelHours + travelTime);
+    let modalText = "";
+    if (travelTime * 60 >= timeToNextWatch()[1] + timeToNextWatch()[0] * 60) {
+      let nextWatch = getWatch() === 6 ? 1 : getWatch() + 1;
+      modalText += `New Watch: ${nextWatch} \r\n`;
+      const encounterChance =
+        getRegionById(regionsMatrix[selected[0]][selected[1]]).encounterRate /
+        100;
+      if (Math.random() < encounterChance) {
+        modalText += `Encounter: ${handleEncounter()} \r\n`;
+      }
+      setModalTitle("Update");
+      setModalOpen(true);
+    }
+
+    if (newProgress < hexLength) {
+      setHexProgress(newProgress);
+    }
+    if (newProgress >= hexLength) {
+      setModalTitle("Update");
+      if (destination != undefined) {
+        modalText += `New Hex: (${destination[1]}, ${destination[0]}) \r\n`;
+      }
+      setHexProgress(newProgress - hexLength);
+      setSelected([-1, -1]);
+      setDestination(undefined);
+      setModalOpen(true);
+    }
+    setModalDescription(modalText);
+  };
+
+  const handleRest = () => {
+    let newTime = dateTime.add(restTime, "hour");
+    setDateTime(newTime);
+
+    let modalText = "";
+    if (restTime * 60 >= timeToNextWatch()[1] + timeToNextWatch()[0] * 60) {
+      let nextWatch = getWatch() === 6 ? 1 : getWatch() + 1;
+      modalText += `New Watch: ${nextWatch} \r\n`;
+      const encounterChance =
+        getRegionById(regionsMatrix[selected[0]][selected[1]]).encounterRate /
+        100;
+      if (Math.random() < encounterChance) {
+        modalText += `Encounter: ${rollEncounter()} \r\n`;
+      }
+      setModalTitle("Update");
+      setModalOpen(true);
+    }
+
+    setModalDescription(modalText);
+  };
+
+  const handleSearch = () => {
+    let newTime = dateTime.add(searchTime, "hour");
+    setDateTime(newTime);
+    setDailyTravelHours(dailyTravelHours + searchTime);
+    setModalTitle("Search Results");
+    setModalDescription("Nothing found.");
+    if (searchForceEncounter || Math.random() < 0.666) {
+      let encounterText = handleEncounter();
+      if (encounterText != undefined) {
+        setModalDescription(encounterText);
+      }
+    }
+    setModalOpen(true);
+  };
+
+  const handleEncounter = () => {
+    if (partyAction === "rest") {
+      return rollEncounter();
+    }
+    if (partyAction === "search") {
+      if (searchForceLocation) {
+        return "Hex location discovered!";
+      }
+      if (Math.random() < 0.5) {
+        return "Hex location discovered!";
+      }
+      return rollEncounter();
+    }
+    if (partyAction === "travel") {
+      if (forceLocation) {
+        return "Hex location discovered!";
+      }
+      if (Math.random() < 0.5) {
+        return "Hex location discovered!";
+      }
+      return rollEncounter();
+    }
+  };
+
+  const rollEncounter = (): string => {
+    let table = getRegionById(
+      regionsMatrix[selected[0]][selected[1]]
+    ).encounterTable;
+    let num = Math.floor(Math.random() * table.length + 1);
+    if (num >= table.length) {
+      return `${rollEncounter()} and ${rollEncounter()}`;
+    }
+    return table[num];
+  };
+
   useEffect(() => {
     if (terrainMatrix[0][0] === "") {
       let item = localStorage.getItem("terrainMatrix");
@@ -264,28 +607,73 @@ function App() {
         setRegionDefinitions(JSON.parse(item));
       }
     }
+    if (conditionDefinitions.length === 0) {
+      let item = localStorage.getItem("conditionDefinitions");
+      if (item != null) {
+        setConditionDefinitions(JSON.parse(item));
+      }
+    }
+
+    if (selected[0] !== -1 && selected[1] !== -1) {
+      setTravelDistance(
+        travelTime *
+          (travelSpeed === "slow" ? 2 : travelSpeed === "normal" ? 3 : 4) *
+          getTerrainById(terrainMatrix[selected[0]][selected[1]]).speedMods[
+            roadType === "roadTrail" ? 0 : 1
+          ] *
+          conditionDefinitions
+            .filter((condition) => condition.active)
+            .map((con) => con.speedMod)
+            .reduce((a, b) => a * b, 1)
+      );
+    }
   });
 
   return (
     <div className="App">
+      <Dialog
+        className={
+          "bg-black bg-opacity-10 absolute top-0 h-screen w-full flex justify-center"
+        }
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+      >
+        <Dialog.Panel
+          className={
+            "bg-white rounded shadow max-w-sm z-10 text-black absolute top-20 p-2 flex flex-col items-center gap-1"
+          }
+        >
+          <Dialog.Title className={"font-bold text-center"}>
+            {modalTitle}
+          </Dialog.Title>
+          <Dialog.Description>{modalDescription}</Dialog.Description>
+
+          <button
+            className="px-2 rounded bg-blue-400 hover:bg-blue-500 text-white mx-auto"
+            onClick={() => setModalOpen(false)}
+          >
+            Ok
+          </button>
+        </Dialog.Panel>
+      </Dialog>
       <Tab.Group>
         <Tab.List className={"w-max mx-auto -space-x-px"}>
           <Tab>
             {({ selected }) => (
               <button
-                className={`border rounded-l px-3 py-1 ${
-                  selected ? "bg-blue-600 text-white" : ""
+                className={`border rounded-l px-3 py-1 transition-all ${
+                  selected ? "bg-blue-600 text-white" : "hover:bg-gray-100"
                 }`}
               >
-                Travel
+                Explore!
               </button>
             )}
           </Tab>
           <Tab>
             {({ selected }) => (
               <button
-                className={`border rounded-r px-3 py-1 ${
-                  selected ? "bg-blue-600 text-white" : ""
+                className={`border rounded-r px-3 py-1 transition-all ${
+                  selected ? "bg-blue-600 text-white" : "hover:bg-gray-100"
                 }`}
               >
                 Config
@@ -295,54 +683,138 @@ function App() {
         </Tab.List>
         <Tab.Panels>
           <Tab.Panel>
-            {" "}
+            <div className="flex items-center gap-3 justify-center">
+              <div className="mt-2 flex justify-center">
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DateTimeField
+                    label="Date and Time"
+                    value={dateTime}
+                    onChange={(newValue) => {
+                      if (newValue != null) {
+                        setDateTime(newValue);
+                      }
+                    }}
+                    size="small"
+                  />
+                </LocalizationProvider>
+              </div>
+              <div>Watch {getWatch()}/6</div>
+              <div>
+                Next Watch in: {timeToNextWatch()[0]} hours{" "}
+                {timeToNextWatch()[1]} minutes
+              </div>
+            </div>
             {terrainMatrix[0][0] !== "" && selected[0] !== -1 ? (
-              <div className="flex justify-center gap-4 mt-4">
-                <div className="mt-2 flex flex-col">
-                  <h2 className="bg-black text-white rounded w-max mx-auto px-2">
-                    Current Hex
-                  </h2>
-                  <span className="text-sm">
-                    <span className="font-bold">Coordinates: </span>(
-                    {selected[1]}, {selected[0]})
-                  </span>
-                  <span className="text-sm">
-                    <span className="font-bold">Terrain: </span>
-                    {terrainMatrix[selected[0]] != undefined
-                      ? getTerrainById(terrainMatrix[selected[0]][selected[1]])
-                          .name
-                      : "N/A"}
-                  </span>
-                  <span className="text-sm">
-                    <span className="font-bold">Region: </span>
-                    {regionsMatrix[selected[0]] != undefined
-                      ? getRegionById(regionsMatrix[selected[0]][selected[1]])
-                          .name
-                      : "N/A"}
-                  </span>
+              <div>
+                <div className="flex items-center justify-center gap-8">
+                  <div className="flex items-center justify-center gap-2">
+                    <span>Hex Progress:</span>{" "}
+                    <div className="flex items-center">
+                      <input
+                        className="w-10"
+                        value={hexProgress}
+                        type="number"
+                        onChange={(e) => {
+                          setHexProgress(+e.target.value);
+                        }}
+                      />
+                      <span>/{hexPosition === "near" ? 6 : 12}mi</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <span>Daily Travel Hours:</span>{" "}
+                    <div className="flex items-center">
+                      <input
+                        className="w-10"
+                        value={dailyTravelHours}
+                        type="number"
+                        onChange={(e) => {
+                          setDailyTravelHours(+e.target.value);
+                        }}
+                      />
+                      <span>/8hrs</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setDailyTravelHours(0);
+                      }}
+                      className="rounded bg-blue-400 px-2 hover:bg-blue-500 text-white"
+                    >
+                      Reset
+                    </button>
+                  </div>
                 </div>
-                <div className="mt-2 flex flex-col">
-                  <h2 className="bg-yellow-400 rounded w-max mx-auto px-2">
-                    Destination
-                  </h2>
-                  <span className="text-sm">
-                    <span className="font-bold">Coordinates: </span>(
-                    {selected[1]}, {selected[0]})
-                  </span>
-                  <span className="text-sm">
-                    <span className="font-bold">Terrain: </span>
-                    {terrainMatrix[selected[0]] != undefined
-                      ? getTerrainById(terrainMatrix[selected[0]][selected[1]])
-                          .name
-                      : "N/A"}
-                  </span>
-                  <span className="text-sm">
-                    <span className="font-bold">Region: </span>
-                    {regionsMatrix[selected[0]] != undefined
-                      ? getRegionById(regionsMatrix[selected[0]][selected[1]])
-                          .name
-                      : "N/A"}
-                  </span>
+                <button
+                  className="mt-2 px-2 rounded bg-blue-400 hover:bg-blue-500 text-white mx-auto transition-all"
+                  onClick={() => {
+                    setModalTitle("Encounter");
+                    let encounter = handleEncounter();
+                    if (encounter != undefined) {
+                      setModalDescription(encounter);
+                    }
+                    setModalOpen(true);
+                  }}
+                >
+                  Encounter
+                </button>
+                <div className="flex justify-center gap-4 mt-4">
+                  <div className="mt-2 flex flex-col">
+                    <h2 className="bg-black text-white rounded w-max mx-auto px-2">
+                      Current Hex
+                    </h2>
+                    <span className="text-sm">
+                      <span className="font-bold">Coordinates: </span>(
+                      {selected[1]}, {selected[0]})
+                    </span>
+                    <span className="text-sm">
+                      <span className="font-bold">Terrain: </span>
+                      {terrainMatrix[selected[0]] != undefined
+                        ? getTerrainById(
+                            terrainMatrix[selected[0]][selected[1]]
+                          ).name
+                        : ""}
+                    </span>
+                    <span className="text-sm">
+                      <span className="font-bold">Region: </span>
+                      {regionsMatrix[selected[0]] != undefined
+                        ? getRegionById(regionsMatrix[selected[0]][selected[1]])
+                            .name
+                        : ""}
+                    </span>
+                  </div>
+                  {partyAction === "travel" ? (
+                    <div className="mt-2 flex flex-col">
+                      <h2 className="bg-yellow-400 rounded w-max mx-auto px-2">
+                        Destination
+                      </h2>
+                      <span className="text-sm">
+                        <span className="font-bold">Coordinates: </span>
+                        {destination != undefined
+                          ? `(${destination[1]}, ${destination[0]})`
+                          : ""}
+                      </span>
+                      <span className="text-sm">
+                        <span className="font-bold">Terrain: </span>
+                        {destination != undefined &&
+                        terrainMatrix[destination[0]] != undefined
+                          ? getTerrainById(
+                              terrainMatrix[destination[0]][destination[1]]
+                            ).name
+                          : ""}
+                      </span>
+                      <span className="text-sm">
+                        <span className="font-bold">Region: </span>
+                        {destination != undefined &&
+                        regionsMatrix[destination[0]] != undefined
+                          ? getRegionById(
+                              regionsMatrix[destination[0]][destination[1]]
+                            ).name
+                          : ""}
+                      </span>
+                    </div>
+                  ) : (
+                    ""
+                  )}
                 </div>
               </div>
             ) : (
@@ -360,17 +832,26 @@ function App() {
                       {row.map((col, j) => (
                         <div
                           onClick={() => {
-                            setSelected([i, j]);
+                            if (selected[0] != i || selected[1] != j) {
+                              setSelected([i, j]);
+                              updateAdjacent([i, j]);
+                              setHexProgress(0);
+                            }
                           }}
                           className={`${
                             selected[0] === i && selected[1] === j
                               ? "bg-black text-white"
+                              : destination != undefined &&
+                                destination[0] == i &&
+                                destination[1] == j &&
+                                partyAction === "travel"
+                              ? "bg-yellow-400"
                               : terrainMatrix[0][0] !== ""
                               ? getTerrainById(col) != undefined
                                 ? getTerrainById(col).styles
                                 : ""
                               : ""
-                          }  hexagon relative -mt-[2px] w-8 h-8 flex-none`}
+                          } hexagon relative -mt-[2px] w-8 h-8 flex-none`}
                         >
                           <span className="text-[.6rem]">
                             {terrainMatrix[0][0] !== "" ? `${j}, ${i}` : ""}
@@ -389,14 +870,623 @@ function App() {
                   ))}
                 </div>
               </div>
-              <div className="mt-6 px-3">
-                <div>Content</div>
-                <div>Content</div>
-                <div>Content</div>
-                <div>Content</div>
-                <div>Content</div>
-              </div>
+              {selected[0] != -1 ? (
+                <div className="mt-6 px-3 w-48 flex flex-col items-center">
+                  <div>
+                    <RadioGroup value={partyAction} onChange={setPartyAction}>
+                      <RadioGroup.Label>The party is going to</RadioGroup.Label>
+
+                      <div
+                        className={`flex items-center -space-x-px cursor-pointer`}
+                      >
+                        <RadioGroup.Option value="travel">
+                          {({ checked }) => (
+                            <div
+                              className={`rounded-l border transition-all p-1 ${
+                                checked
+                                  ? "bg-blue-600 text-white"
+                                  : "hover:bg-gray-100"
+                              }`}
+                            >
+                              <span>Travel</span>
+                            </div>
+                          )}
+                        </RadioGroup.Option>
+                        <RadioGroup.Option value="search">
+                          {({ checked }) => (
+                            <div
+                              className={`border transition-all p-1 ${
+                                checked
+                                  ? "bg-blue-600 text-white"
+                                  : "hover:bg-gray-100"
+                              }`}
+                            >
+                              <span>Search</span>
+                            </div>
+                          )}
+                        </RadioGroup.Option>
+                        <RadioGroup.Option value="rest">
+                          {({ checked }) => (
+                            <div
+                              className={`rounded-r transition-all border p-1 ${
+                                checked
+                                  ? "bg-blue-600 text-white"
+                                  : "hover:bg-gray-100"
+                              }`}
+                            >
+                              <span>Rest</span>
+                            </div>
+                          )}
+                        </RadioGroup.Option>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  {partyAction === "travel" && adjacentHexes != null ? (
+                    <div className="flex w-full items-center mt-2">
+                      <span>To: </span>
+                      <div className="mx-auto w-24 relative">
+                        <Listbox
+                          value={destination}
+                          onChange={(e) => {
+                            console.log([e[2], e[0]]);
+                            setDestination([e[2], e[0]]);
+                          }}
+                        >
+                          <Listbox.Button
+                            className={
+                              "border rounded hover:bg-gray-100 transition-all px-2 w-full"
+                            }
+                          >
+                            {destination != null && partyAction === "travel"
+                              ? `${destination[1]}, ${destination[0]}`
+                              : "Destination"}
+                          </Listbox.Button>
+                          <Listbox.Options>
+                            <div className="shadow rounded absolute w-24 bg-white">
+                              {adjacentHexes.map((hex) => (
+                                <Listbox.Option
+                                  className={"hover:bg-gray-100 transition-all"}
+                                  key={`${hex[1]},${hex[0]}`}
+                                  value={`${hex[1]},${hex[0]}`}
+                                >
+                                  {`${hex[1]},${hex[0]}`}
+                                </Listbox.Option>
+                              ))}
+                            </div>
+                          </Listbox.Options>
+                        </Listbox>
+                      </div>
+                    </div>
+                  ) : (
+                    ""
+                  )}
+                  {destination != null && partyAction === "travel" ? (
+                    <div>
+                      <RadioGroup value={hexPosition} onChange={setHexPosition}>
+                        <RadioGroup.Label>From</RadioGroup.Label>
+
+                        <div
+                          className={`flex items-center -space-x-px cursor-pointer`}
+                        >
+                          <RadioGroup.Option value="near">
+                            {({ checked }) => (
+                              <div
+                                className={`rounded-l border transition-all p-1 ${
+                                  checked
+                                    ? "bg-blue-600 text-white"
+                                    : "hover:bg-gray-100"
+                                }`}
+                              >
+                                <span>Near Side</span>
+                              </div>
+                            )}
+                          </RadioGroup.Option>
+                          <RadioGroup.Option value="far">
+                            {({ checked }) => (
+                              <div
+                                className={`rounded-r border transition-all p-1 ${
+                                  checked
+                                    ? "bg-blue-600 text-white"
+                                    : "hover:bg-gray-100"
+                                }`}
+                              >
+                                <span>Far Side</span>
+                              </div>
+                            )}
+                          </RadioGroup.Option>
+                        </div>
+                      </RadioGroup>
+                      <div className="text-[0.6rem] font-bold">
+                        {hexPosition === "near"
+                          ? "6 miles away"
+                          : "12 miles away"}
+                      </div>
+                    </div>
+                  ) : (
+                    ""
+                  )}
+                  {destination != null && partyAction === "travel" ? (
+                    <div className="mt-3">
+                      <RadioGroup value={travelSpeed} onChange={setTravelSpeed}>
+                        <RadioGroup.Label>Speed</RadioGroup.Label>
+
+                        <div
+                          className={`flex items-center -space-x-px cursor-pointer`}
+                        >
+                          <RadioGroup.Option value="slow">
+                            {({ checked }) => (
+                              <div
+                                className={`rounded-l border transition-all p-1 ${
+                                  checked
+                                    ? "bg-blue-600 text-white"
+                                    : "hover:bg-gray-100"
+                                }`}
+                              >
+                                <span>Slow</span>
+                              </div>
+                            )}
+                          </RadioGroup.Option>
+                          <RadioGroup.Option value="normal">
+                            {({ checked }) => (
+                              <div
+                                className={`border transition-all p-1 ${
+                                  checked
+                                    ? "bg-blue-600 text-white"
+                                    : "hover:bg-gray-100"
+                                }`}
+                              >
+                                <span>Normal</span>
+                              </div>
+                            )}
+                          </RadioGroup.Option>
+                          <RadioGroup.Option value="fast">
+                            {({ checked }) => (
+                              <div
+                                className={`rounded-r transition-all border p-1 ${
+                                  checked
+                                    ? "bg-blue-600 text-white"
+                                    : "hover:bg-gray-100"
+                                }`}
+                              >
+                                <span>Fast</span>
+                              </div>
+                            )}
+                          </RadioGroup.Option>
+                        </div>
+                      </RadioGroup>
+                      <div className="w-max mx-auto font-bold text-[0.6rem]">
+                        {travelSpeed === "slow" ? (
+                          <div className="flex flex-col items-center w-36">
+                            <span>2mph</span>
+                            <span>Can sneak while traveling</span>
+                          </div>
+                        ) : travelSpeed === "normal" ? (
+                          <span>3mph</span>
+                        ) : (
+                          <div className="flex flex-col items-center w-36">
+                            <span>4mph</span>
+                            <span>
+                              -5 passive perception for spotting danger
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    ""
+                  )}
+                  {destination != null && partyAction === "travel" ? (
+                    <div>
+                      <RadioGroup value={roadType} onChange={setRoadType}>
+                        <RadioGroup.Label>Road?</RadioGroup.Label>
+
+                        <div
+                          className={`flex items-center -space-x-px cursor-pointer`}
+                        >
+                          <RadioGroup.Option value="pathless">
+                            {({ checked }) => (
+                              <div
+                                className={`rounded-l border transition-all p-1 ${
+                                  checked
+                                    ? "bg-blue-600 text-white"
+                                    : "hover:bg-gray-100"
+                                }`}
+                              >
+                                <span>Pathless</span>
+                              </div>
+                            )}
+                          </RadioGroup.Option>
+                          <RadioGroup.Option value="roadTrail">
+                            {({ checked }) => (
+                              <div
+                                className={`rounded-r border transition-all p-1 ${
+                                  checked
+                                    ? "bg-blue-600 text-white"
+                                    : "hover:bg-gray-100"
+                                }`}
+                              >
+                                <span>Road/Trail</span>
+                              </div>
+                            )}
+                          </RadioGroup.Option>
+                        </div>
+                      </RadioGroup>
+                      <div className="text-[0.6rem] font-bold">
+                        x
+                        {
+                          getTerrainById(
+                            terrainMatrix[selected[0]][selected[1]]
+                          ).speedMods[roadType === "roadTrail" ? 0 : 1]
+                        }
+                      </div>
+                    </div>
+                  ) : (
+                    ""
+                  )}
+                  {destination != null && partyAction === "travel" ? (
+                    <div>
+                      <Disclosure>
+                        <Disclosure.Button className="px-2 border rounded my-1 transition-all hover:bg-gray-100">
+                          <div>
+                            <span>Conditions</span>{" "}
+                            <span>
+                              (
+                              {
+                                conditionDefinitions.filter(
+                                  (condition) => condition.active
+                                ).length
+                              }
+                              )
+                            </span>
+                          </div>
+                        </Disclosure.Button>
+                        <Disclosure.Panel className="text-gray-500">
+                          <div className="flex flex-col text-sm border rounded">
+                            {conditionDefinitions.map((condition, i) => (
+                              <button
+                                onClick={() => {
+                                  let newDefs = [...conditionDefinitions];
+                                  let newObj = { ...condition };
+                                  newObj.active = !newObj.active;
+                                  newDefs[i] = newObj;
+                                  setConditionDefinitions(newDefs);
+                                }}
+                              >
+                                <div
+                                  className={`${
+                                    condition.active
+                                      ? "bg-blue-500 text-white"
+                                      : "hover:bg-gray-100"
+                                  } transition-all justify-between flex items-center w-full mx-auto p-1`}
+                                >
+                                  <span>{condition.name}</span>
+                                  <span className="font-bold text-xs">
+                                    x{condition.speedMod}
+                                  </span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </Disclosure.Panel>
+                      </Disclosure>
+                      <div className="text-[0.6rem] font-bold">
+                        x
+                        {conditionDefinitions
+                          .filter((condition) => condition.active)
+                          .map((con) => con.speedMod)
+                          .reduce((a, b) => a * b, 1)
+                          .toFixed(2)}
+                      </div>
+                    </div>
+                  ) : (
+                    ""
+                  )}
+                  {destination != null && partyAction === "travel" ? (
+                    <div>
+                      <Switch
+                        checked={forceLocation}
+                        onChange={setForceLocation}
+                        className={`${
+                          forceLocation
+                            ? "bg-blue-500 text-white hover:bg-blue-600"
+                            : "hover:bg-gray-100"
+                        } transition-all my-2 px-2 rounded border`}
+                      >
+                        <span>Force Location on Encounter</span>
+                      </Switch>
+                    </div>
+                  ) : (
+                    ""
+                  )}
+                  {partyAction === "search" ? (
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <span>For</span>
+                        <div>
+                          <input
+                            className="w-12"
+                            value={searchTime}
+                            type="number"
+                            onChange={(e) => {
+                              let num = +e.target.value;
+                              setSearchTime(num);
+                            }}
+                          />
+                          <span>hours</span>
+                        </div>
+                      </div>
+                      <div>
+                        <Switch
+                          checked={searchForceLocation}
+                          onChange={setSearchForceLocation}
+                          className={`${
+                            searchForceLocation
+                              ? "bg-blue-500 text-white hover:bg-blue-600"
+                              : "hover:bg-gray-100"
+                          } transition-all my-2 px-2 rounded border`}
+                        >
+                          <span>Force Location on Encounter</span>
+                        </Switch>
+                      </div>
+                      <div>
+                        <Switch
+                          checked={searchForceEncounter}
+                          onChange={setSearchForceEncounter}
+                          className={`${
+                            searchForceEncounter
+                              ? "bg-blue-500 text-white hover:bg-blue-600"
+                              : "hover:bg-gray-100"
+                          } transition-all my-2 px-2 rounded border`}
+                        >
+                          <span>Force Encounter</span>
+                        </Switch>
+                      </div>
+
+                      {searchTime > 8 - dailyTravelHours ? (
+                        <div className="flex items-center gap-2 mb-2 text-xs justify-center">
+                          <span className="text-red-500">
+                            Warning: Forced March!
+                          </span>{" "}
+                          <button
+                            onClick={() => {
+                              setSearchTime(8 - dailyTravelHours);
+                            }}
+                            className="bg-blue-400 hover:bg-blue-500 rounded text-white px-2"
+                          >
+                            Reduce
+                          </button>
+                        </div>
+                      ) : (
+                        ""
+                      )}
+                      <button
+                        onClick={() => {
+                          handleSearch();
+                        }}
+                        className="px-2 mt-2 rounded bg-blue-400 text-white transition-all hover:bg-blue-500"
+                      >
+                        GO!
+                      </button>
+                    </div>
+                  ) : (
+                    ""
+                  )}
+                  {partyAction === "rest" ? (
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <span>For</span>
+                        <div>
+                          <input
+                            className="w-12"
+                            value={restTime}
+                            type="number"
+                            onChange={(e) => {
+                              let num = +e.target.value;
+                              if (
+                                num >
+                                timeToNextWatch()[0] + timeToNextWatch()[1] / 60
+                              ) {
+                                num =
+                                  timeToNextWatch()[0] +
+                                  timeToNextWatch()[1] / 60;
+                              }
+                              setRestTime(num);
+                            }}
+                          />
+                          <span>hours</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          handleRest();
+                        }}
+                        className="px-2 mt-2 rounded bg-blue-400 text-white transition-all hover:bg-blue-500"
+                      >
+                        GO!
+                      </button>
+                    </div>
+                  ) : (
+                    ""
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  <span>Select the current hex</span>
+                </div>
+              )}
             </div>
+            {destination != null && partyAction === "travel" ? (
+              <div className="w-72 mx-auto my-4">
+                <div className="justify-end flex">
+                  <div className="flex">
+                    <input
+                      className="w-12"
+                      value={tempDistance}
+                      type="number"
+                      onChange={(e) => {
+                        setTempDistance(+e.target.value);
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        let num =
+                          tempDistance /
+                          (travelSpeed === "slow"
+                            ? 2
+                            : travelSpeed === "normal"
+                            ? 3
+                            : 4) /
+                          getTerrainById(
+                            terrainMatrix[selected[0]][selected[1]]
+                          ).speedMods[roadType === "roadTrail" ? 0 : 1] /
+                          conditionDefinitions
+                            .filter((condition) => condition.active)
+                            .map((con) => con.speedMod)
+                            .reduce((a, b) => a * b, 1);
+                        let hexDist = hexPosition === "near" ? 6 : 12;
+                        if (tempDistance > hexDist - hexProgress) {
+                          num =
+                            (hexDist - hexProgress) /
+                            (travelSpeed === "slow"
+                              ? 2
+                              : travelSpeed === "normal"
+                              ? 3
+                              : 4) /
+                            getTerrainById(
+                              terrainMatrix[selected[0]][selected[1]]
+                            ).speedMods[roadType === "roadTrail" ? 0 : 1] /
+                            conditionDefinitions
+                              .filter((condition) => condition.active)
+                              .map((con) => con.speedMod)
+                              .reduce((a, b) => a * b, 1);
+                        }
+
+                        if (
+                          num >
+                          timeToNextWatch()[0] + timeToNextWatch()[1] / 60
+                        ) {
+                          num =
+                            timeToNextWatch()[0] + timeToNextWatch()[1] / 60;
+                        }
+
+                        setTravelTime(num);
+                      }}
+                      className="text-sm rounded bg-blue-400 px-1 text-white hover:bg-blue-500"
+                    >
+                      Set Distance
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center gap-3 my-4">
+                  <div className="flex items-center">
+                    <input
+                      className="w-12"
+                      value={travelTime}
+                      type="number"
+                      onChange={(e) => {
+                        let num = +e.target.value;
+                        if (
+                          num >
+                          timeToNextWatch()[0] + timeToNextWatch()[1] / 60
+                        ) {
+                          num =
+                            timeToNextWatch()[0] + timeToNextWatch()[1] / 60;
+                        }
+
+                        let numDist =
+                          num *
+                          (travelSpeed === "slow"
+                            ? 2
+                            : travelSpeed === "normal"
+                            ? 3
+                            : 4) *
+                          getTerrainById(
+                            terrainMatrix[selected[0]][selected[1]]
+                          ).speedMods[roadType === "roadTrail" ? 0 : 1] *
+                          conditionDefinitions
+                            .filter((condition) => condition.active)
+                            .map((con) => con.speedMod)
+                            .reduce((a, b) => a * b, 1);
+                        let hexDist = hexPosition === "near" ? 6 : 12;
+                        if (numDist > hexDist - hexProgress) {
+                          num =
+                            (hexDist - hexProgress) /
+                            (travelSpeed === "slow"
+                              ? 2
+                              : travelSpeed === "normal"
+                              ? 3
+                              : 4) /
+                            getTerrainById(
+                              terrainMatrix[selected[0]][selected[1]]
+                            ).speedMods[roadType === "roadTrail" ? 0 : 1] /
+                            conditionDefinitions
+                              .filter((condition) => condition.active)
+                              .map((con) => con.speedMod)
+                              .reduce((a, b) => a * b, 1);
+                        }
+                        setTravelTime(num);
+                      }}
+                    />
+                    <span>hours</span>
+                  </div>
+
+                  <div>x</div>
+                  <div className="font-bold">
+                    {travelSpeed === "slow" ? (
+                      <span>2mph</span>
+                    ) : travelSpeed === "normal" ? (
+                      <span>3mph</span>
+                    ) : (
+                      <span>4mph</span>
+                    )}
+                  </div>
+                  <div>x</div>
+                  <div className="font-bold">
+                    {
+                      getTerrainById(terrainMatrix[selected[0]][selected[1]])
+                        .speedMods[roadType === "roadTrail" ? 0 : 1]
+                    }
+                  </div>
+                  <div>x</div>
+                  <div className="font-bold">
+                    {" "}
+                    {conditionDefinitions
+                      .filter((condition) => condition.active)
+                      .map((con) => con.speedMod)
+                      .reduce((a, b) => a * b, 1)
+                      .toFixed(2)}
+                  </div>
+                  <div>=</div>
+                  <div className="font-bold">{travelDistance.toFixed(2)}</div>
+                  <div>miles</div>
+                </div>
+                {travelTime > 8 - dailyTravelHours ? (
+                  <div className="flex items-center gap-2 mb-2 text-xs justify-center">
+                    <span className="text-red-500">Warning: Forced March!</span>{" "}
+                    <button
+                      onClick={() => {
+                        setTravelTime(8 - dailyTravelHours);
+                      }}
+                      className="bg-blue-400 hover:bg-blue-500 rounded text-white px-2"
+                    >
+                      Reduce
+                    </button>
+                  </div>
+                ) : (
+                  ""
+                )}
+                <button
+                  onClick={() => {
+                    handleGo();
+                  }}
+                  className="px-2 rounded bg-blue-400 text-white transition-all hover:bg-blue-500"
+                >
+                  GO!
+                </button>
+              </div>
+            ) : (
+              ""
+            )}
           </Tab.Panel>
           <Tab.Panel>
             <div>
@@ -422,7 +1512,7 @@ function App() {
                 </div>
                 <div className="max-w-lg mx-auto mt-4 flex flex-wrap">
                   {terrainDefinitions.map((terrain, i) => (
-                    <div className="w-64 h-32 rounded shadow">
+                    <div className="w-64 h-36 rounded shadow">
                       <div className="space-x-3 py-2 px-3 flex items-center justify-between">
                         <span className="w-max font-bold">
                           <input
@@ -489,7 +1579,7 @@ function App() {
                         <div className="text-left">
                           <div>
                             <span className="text-xs">
-                              Highway:{" "}
+                              Road/Trail:{" "}
                               <span>
                                 x
                                 <input
@@ -513,7 +1603,7 @@ function App() {
                           </div>
                           <div>
                             <span className="text-xs">
-                              Trail:{" "}
+                              Pathless:{" "}
                               <span>
                                 x
                                 <input
@@ -524,30 +1614,6 @@ function App() {
                                     let newDefs = [...terrainDefinitions];
                                     let newObj = { ...newDefs[i] };
                                     newObj.speedMods[1] = +e.target.value;
-                                    newDefs[i] = newObj;
-                                    setTerrainDefinitions(newDefs);
-                                    localStorage.setItem(
-                                      "terrainDefinitions",
-                                      JSON.stringify(newDefs)
-                                    );
-                                  }}
-                                />
-                              </span>
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-xs">
-                              Pathless:{" "}
-                              <span>
-                                x
-                                <input
-                                  className="w-12"
-                                  value={terrain.speedMods[2]}
-                                  type="number"
-                                  onChange={(e) => {
-                                    let newDefs = [...terrainDefinitions];
-                                    let newObj = { ...newDefs[i] };
-                                    newObj.speedMods[2] = +e.target.value;
                                     newDefs[i] = newObj;
                                     setTerrainDefinitions(newDefs);
                                     localStorage.setItem(
@@ -585,6 +1651,46 @@ function App() {
                           />
                         </div>
                       </div>
+                      <div className="flex text-xs py-2 justify-around">
+                        <div>
+                          <span>Navigation DC</span>{" "}
+                          <input
+                            className="w-12"
+                            value={terrain.navigationDC}
+                            type="number"
+                            onChange={(e) => {
+                              let newDefs = [...terrainDefinitions];
+                              let newObj = { ...newDefs[i] };
+                              newObj.navigationDC = +e.target.value;
+                              newDefs[i] = newObj;
+                              setTerrainDefinitions(newDefs);
+                              localStorage.setItem(
+                                "terrainDefinitions",
+                                JSON.stringify(newDefs)
+                              );
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <span>Forage DC</span>{" "}
+                          <input
+                            className="w-12"
+                            value={terrain.forageDC}
+                            type="number"
+                            onChange={(e) => {
+                              let newDefs = [...terrainDefinitions];
+                              let newObj = { ...newDefs[i] };
+                              newObj.forageDC = +e.target.value;
+                              newDefs[i] = newObj;
+                              setTerrainDefinitions(newDefs);
+                              localStorage.setItem(
+                                "terrainDefinitions",
+                                JSON.stringify(newDefs)
+                              );
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   ))}
                   <div className="w-64 h-32 rounded shadow flex">
@@ -593,7 +1699,7 @@ function App() {
                       className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded py-2"
                       onClick={() => {
                         let newDefs = [...terrainDefinitions];
-                        newDefs = newDefs.concat(emptyTerrain);
+                        newDefs.push(emptyTerrain);
                         setTerrainDefinitions(newDefs);
                         localStorage.setItem(
                           "terrainDefinitions",
@@ -690,76 +1796,100 @@ function App() {
                           </svg>
                         </button>
                       </div>
+                      <div className="flex px-4">
+                        <input
+                          className="w-10"
+                          value={region.encounterRate}
+                          type="number"
+                          onChange={(e) => {
+                            let newDefs = [...regionDefinitions];
+                            let newObj = { ...newDefs[i] };
+                            newObj.encounterRate = +e.target.value;
+                            newDefs[i] = newObj;
+                            setRegionDefinitions(newDefs);
+                            localStorage.setItem(
+                              "regionDefinitions",
+                              JSON.stringify(newDefs)
+                            );
+                          }}
+                        />
+                        <span>% chance per watch</span>
+                      </div>
                       <table className="w-full">
-                        {region.encounterTable.map((encounter, j) => (
-                          <tr className={`${j % 2 === 0 ? "bg-gray-100" : ""}`}>
-                            <th className="px-1">{j + 1}</th>
-                            <td>
-                              <input
-                                className="w-full bg-transparent "
-                                value={encounter}
-                                type="text"
-                                onChange={(e) => {
-                                  let newDefs = [...regionDefinitions];
-                                  let newObj = { ...newDefs[i] };
-                                  let newTab = [...newObj.encounterTable];
-                                  newTab[j] = e.target.value;
-                                  newObj.encounterTable = newTab;
-                                  newDefs[i] = newObj;
-                                  setRegionDefinitions(newDefs);
-                                  localStorage.setItem(
-                                    "regionDefinitions",
-                                    JSON.stringify(newDefs)
-                                  );
-                                }}
-                              />
-                            </td>
-                            <td>
-                              <button
-                                className="bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
-                                onClick={() => {
-                                  let newDefs = [...regionDefinitions];
-                                  let newObj = { ...newDefs[i] };
-                                  let newTab = [...newObj.encounterTable];
-                                  newTab.splice(j, 1);
-                                  newObj.encounterTable = newTab;
-                                  newDefs[i] = newObj;
-                                  setRegionDefinitions(newDefs);
-                                  localStorage.setItem(
-                                    "regionDefinitions",
-                                    JSON.stringify(newDefs)
-                                  );
-                                }}
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  width="12"
-                                  height="12"
-                                  viewBox="0 0 24 24"
+                        <tbody>
+                          {region.encounterTable.map((encounter, j) => (
+                            <tr
+                              className={`${j % 2 === 0 ? "bg-gray-100" : ""}`}
+                            >
+                              <th className="px-1">{j + 1}</th>
+                              <td>
+                                <input
+                                  className="w-full bg-transparent "
+                                  value={encounter}
+                                  type="text"
+                                  onChange={(e) => {
+                                    let newDefs = [...regionDefinitions];
+                                    let newObj = { ...newDefs[i] };
+                                    let newTab = [...newObj.encounterTable];
+                                    newTab[j] = e.target.value;
+                                    newObj.encounterTable = newTab;
+                                    newDefs[i] = newObj;
+                                    setRegionDefinitions(newDefs);
+                                    localStorage.setItem(
+                                      "regionDefinitions",
+                                      JSON.stringify(newDefs)
+                                    );
+                                  }}
+                                />
+                              </td>
+                              <td>
+                                <button
+                                  className="bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
+                                  onClick={() => {
+                                    let newDefs = [...regionDefinitions];
+                                    let newObj = { ...newDefs[i] };
+                                    let newTab = [...newObj.encounterTable];
+                                    newTab.splice(j, 1);
+                                    newObj.encounterTable = newTab;
+                                    newDefs[i] = newObj;
+                                    setRegionDefinitions(newDefs);
+                                    localStorage.setItem(
+                                      "regionDefinitions",
+                                      JSON.stringify(newDefs)
+                                    );
+                                  }}
                                 >
-                                  <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
-                                </svg>
-                              </button>
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
+                                  </svg>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          <tr
+                            className={`${
+                              regionDefinitions[i].encounterTable.length % 2 ===
+                              0
+                                ? "bg-gray-100"
+                                : ""
+                            }`}
+                          >
+                            <th className="px-1">
+                              {regionDefinitions[i].encounterTable.length + 1}
+                            </th>
+                            <td>
+                              <div className="text-left">
+                                Roll 2 and combine them.
+                              </div>
                             </td>
+                            <td />
                           </tr>
-                        ))}
-                        <tr
-                          className={`${
-                            regionDefinitions[i].encounterTable.length % 2 === 0
-                              ? "bg-gray-100"
-                              : ""
-                          }`}
-                        >
-                          <th className="px-1">
-                            {regionDefinitions[i].encounterTable.length + 1}
-                          </th>
-                          <td>
-                            <div className="text-left">
-                              Roll 2 and combine them.
-                            </div>
-                          </td>
-                          <td />
-                        </tr>
+                        </tbody>
                       </table>
                       <button
                         className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded-b py-2"
@@ -767,8 +1897,7 @@ function App() {
                           let newDefs = [...regionDefinitions];
                           let newObj = { ...newDefs[i] };
                           let newTab = [...newObj.encounterTable];
-                          newTab = newTab.concat("");
-                          newTab.concat("");
+                          newTab.push("");
                           newObj.encounterTable = newTab;
                           newDefs[i] = newObj;
                           setRegionDefinitions(newDefs);
@@ -802,7 +1931,7 @@ function App() {
                       className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded py-2 flex-grow"
                       onClick={() => {
                         let newDefs = [...regionDefinitions];
-                        newDefs = newDefs.concat(emptyRegion);
+                        newDefs.push(emptyRegion);
                         setRegionDefinitions(newDefs);
                         localStorage.setItem(
                           "regionDefinitions",
@@ -829,6 +1958,110 @@ function App() {
                     </button>
                   </div>
                 </div>
+              </div>
+              <div className="w-72 rounded shadow mx-auto mt-4">
+                <div className="space-x-3 py-2 px-3 flex items-center justify-between">
+                  <span className="w-max font-bold">Conditions</span>
+                </div>
+                <table className="w-full">
+                  <tbody>
+                    {conditionDefinitions.map((condition, i) => (
+                      <tr className={`${i % 2 === 0 ? "bg-gray-100" : ""}`}>
+                        <th className="px-1 font-normal">
+                          <input
+                            className="w-full bg-transparent "
+                            value={condition.name}
+                            type="text"
+                            onChange={(e) => {
+                              let newDefs = [...conditionDefinitions];
+                              let newObj = { ...newDefs[i] };
+                              newObj.name = e.target.value;
+                              newDefs[i] = newObj;
+                              setConditionDefinitions(newDefs);
+                              localStorage.setItem(
+                                "conditionDefinitions",
+                                JSON.stringify(newDefs)
+                              );
+                            }}
+                          />
+                        </th>
+                        <td>
+                          <span className="flex">
+                            x
+                            <input
+                              className="w-full bg-transparent "
+                              value={condition.speedMod}
+                              type="number"
+                              onChange={(e) => {
+                                let newDefs = [...conditionDefinitions];
+                                let newObj = { ...newDefs[i] };
+                                newObj.speedMod = +e.target.value;
+                                newDefs[i] = newObj;
+                                setConditionDefinitions(newDefs);
+                                localStorage.setItem(
+                                  "conditionDefinitions",
+                                  JSON.stringify(newDefs)
+                                );
+                              }}
+                            />
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
+                            onClick={() => {
+                              let newDefs = [...conditionDefinitions];
+                              newDefs.splice(i, 1);
+                              setConditionDefinitions(newDefs);
+                              localStorage.setItem(
+                                "conditionDefinitions",
+                                JSON.stringify(newDefs)
+                              );
+                            }}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <button
+                  className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded-b py-2"
+                  onClick={() => {
+                    let newDefs = [...conditionDefinitions];
+                    newDefs.push(emptyCondition);
+                    setConditionDefinitions(newDefs);
+                    localStorage.setItem(
+                      "conditionDefinitions",
+                      JSON.stringify(newDefs)
+                    );
+                  }}
+                >
+                  <svg
+                    className="w-full mx-auto"
+                    clip-rule="evenodd"
+                    fill-rule="evenodd"
+                    stroke-linejoin="round"
+                    stroke-miterlimit="2"
+                    height={12}
+                    width={12}
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m11 11h-7.25c-.414 0-.75.336-.75.75s.336.75.75.75h7.25v7.25c0 .414.336.75.75.75s.75-.336.75-.75v-7.25h7.25c.414 0 .75-.336.75-.75s-.336-.75-.75-.75h-7.25v-7.25c0-.414-.336-.75-.75-.75s-.75.336-.75.75z"
+                      fill-rule="nonzero"
+                    />
+                  </svg>
+                </button>
               </div>
             </div>
           </Tab.Panel>

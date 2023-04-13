@@ -9,4 +9,8 @@ module.exports = {
     },
   },
   plugins: [],
+  safelist: [
+    {pattern: /^bg-/,
+    variants: ['hover'],},
+  ],
 }
