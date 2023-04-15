@@ -9,7 +9,7 @@ import {
 } from "@headlessui/react";
 import { DateTimeField, LocalizationProvider, deDE } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import dayjs, * as dayJs from "dayjs";
+import dayjs from "dayjs";
 import "./App.css";
 
 interface Terrain {
@@ -83,7 +83,7 @@ function App() {
 
   const [modalOpen, setModalOpen] = useState<boolean>(false);
 
-  const [dateTime, setDateTime] = useState<dayJs.Dayjs>(dayJs(Date.now()));
+  const [dateTime, setDateTime] = useState<dayjs.Dayjs>(dayjs(Date.now()));
   const [selected, setSelected] = useState<number[]>([-1, -1]);
   const [adjacentHexes, setAdjacentHexes] = useState<number[][]>();
   const [hexPosition, setHexPosition] = useState<string>("far");
@@ -458,13 +458,11 @@ function App() {
   const timeToNextWatch = () => {
     const watch = getWatch();
     const nextWatch = watch + 1;
-    let nextWatchTime = dayJs(dateTime);
+    let nextWatchTime = dayjs(dateTime);
     nextWatchTime = nextWatchTime
       .set("hour", (nextWatch - 1) * 4)
       .set("minute", 0)
       .set("second", 0);
-    console.log(dateTime);
-    console.log(nextWatchTime);
     return minToHrMin(nextWatchTime.diff(dateTime, "minute") + 1);
   };
 
@@ -822,7 +820,7 @@ function App() {
             )}
             <div className="flex justify-center">
               <div className="overflow-auto w-max my-6">
-                <div className="w-72 h-72 overflow-auto flex pl-[32px]">
+                <div className="w-96 h-96 overflow-auto flex pl-[32px]">
                   {terrainMatrix.map((row, i) => (
                     <div
                       className={`flex-col -ml-[7px] ${
@@ -928,7 +926,6 @@ function App() {
                         <Listbox
                           value={destination}
                           onChange={(e) => {
-                            console.log([e[2], e[0]]);
                             setDestination([e[2], e[0]]);
                           }}
                         >
