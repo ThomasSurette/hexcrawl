@@ -87,6 +87,7 @@ function App() {
   const [selected, setSelected] = useState<number[]>([-1, -1]);
   const [adjacentHexes, setAdjacentHexes] = useState<number[][]>();
   const [hexPosition, setHexPosition] = useState<string>("far");
+  const [adjacentRegions, setAdjacentRegions] = useState<Region[]>([]);
 
   const [destination, setDestination] = useState<number[]>();
   const [partyAction, setPartyAction] = useState<string>("travel");
@@ -449,6 +450,23 @@ function App() {
       }
     }
     setAdjacentHexes(arr);
+    updateAdjacentRegions(arr, selected);
+  };
+
+  const updateAdjacentRegions = (adjacent: number[][], select: number[]) => {
+    if (adjacent === undefined) return;
+    let regions: Region[] = [];
+    adjacent.forEach((hex) => {
+      let region = getRegionById(regionsMatrix[hex[0]][hex[1]]);
+      if (
+        !regions.includes(region) &&
+        region.id !== regionsMatrix[select[0]][select[1]] &&
+        region.id !== "-1"
+      ) {
+        regions.push(region);
+      }
+    });
+    setAdjacentRegions(regions);
   };
 
   const getWatch = () => {
@@ -570,9 +588,16 @@ function App() {
   };
 
   const rollEncounter = (): string => {
-    let table = getRegionById(
-      regionsMatrix[selected[0]][selected[1]]
-    ).encounterTable;
+    let table = [];
+    if (Math.random() < 0.5 || adjacentRegions.length === 0) {
+      table = getRegionById(
+        regionsMatrix[selected[0]][selected[1]]
+      ).encounterTable;
+    } else {
+      let region =
+        adjacentRegions[Math.floor(Math.random() * adjacentRegions.length)];
+      table = region.encounterTable;
+    }
     let num = Math.floor(Math.random() * table.length + 1);
     if (num >= table.length) {
       return `${rollEncounter()} and ${rollEncounter()}`;
@@ -654,6 +679,14 @@ function App() {
           </button>
         </Dialog.Panel>
       </Dialog>
+      <button
+        onClick={() => {
+          console.log(adjacentRegions);
+        }}
+        className="w-max bg-red-500 text-white"
+      >
+        Test
+      </button>
       <Tab.Group>
         <Tab.List className={"w-max mx-auto -space-x-px"}>
           <Tab>
@@ -833,6 +866,7 @@ function App() {
                             if (selected[0] != i || selected[1] != j) {
                               setSelected([i, j]);
                               updateAdjacent([i, j]);
+
                               setHexProgress(0);
                             }
                           }}
