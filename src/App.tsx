@@ -19,6 +19,7 @@ interface Terrain {
   navigationDC: number;
   forageDC: number;
   styles: string;
+  forageTable: string[][];
 }
 
 interface Region {
@@ -41,6 +42,7 @@ const defaultTerrain: Terrain = {
   navigationDC: 0,
   forageDC: 0,
   styles: "",
+  forageTable: [["", ""]],
 };
 
 const emptyTerrain: Terrain = {
@@ -50,6 +52,7 @@ const emptyTerrain: Terrain = {
   navigationDC: 0,
   forageDC: 0,
   styles: "bg-blue-500 hover:bg-blue-400",
+  forageTable: [["", ""]],
 };
 
 const defaultRegion: Region = {
@@ -605,6 +608,15 @@ function App() {
     return table[num];
   };
 
+  const handleForage = () => {
+    let forageTable = getTerrainById(
+      terrainMatrix[selected[0]][selected[1]]
+    ).forageTable;
+    let num = Math.floor(Math.random() * forageTable.length);
+    let result = forageTable[num];
+    return `${result[0]}: ${result[1]}`;
+  };
+
   useEffect(() => {
     if (terrainMatrix[0][0] === "") {
       let item = localStorage.getItem("terrainMatrix");
@@ -679,14 +691,6 @@ function App() {
           </button>
         </Dialog.Panel>
       </Dialog>
-      <button
-        onClick={() => {
-          console.log(adjacentRegions);
-        }}
-        className="w-max bg-red-500 text-white"
-      >
-        Test
-      </button>
       <Tab.Group>
         <Tab.List className={"w-max mx-auto -space-x-px"}>
           <Tab>
@@ -775,19 +779,34 @@ function App() {
                     </button>
                   </div>
                 </div>
-                <button
-                  className="mt-2 px-2 rounded bg-blue-400 hover:bg-blue-500 text-white mx-auto transition-all"
-                  onClick={() => {
-                    setModalTitle("Encounter");
-                    let encounter = handleEncounter();
-                    if (encounter != undefined) {
-                      setModalDescription(encounter);
-                    }
-                    setModalOpen(true);
-                  }}
-                >
-                  Encounter
-                </button>
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    className="mt-2 px-2 rounded bg-blue-400 hover:bg-blue-500 text-white transition-all"
+                    onClick={() => {
+                      setModalTitle("Encounter");
+                      let encounter = handleEncounter();
+                      if (encounter != undefined) {
+                        setModalDescription(encounter);
+                      }
+                      setModalOpen(true);
+                    }}
+                  >
+                    Encounter
+                  </button>
+                  <button
+                    className="mt-2 px-2 rounded bg-blue-400 hover:bg-blue-500 text-white transition-all"
+                    onClick={() => {
+                      setModalTitle("Forage");
+                      let forage = handleForage();
+                      if (forage != undefined) {
+                        setModalDescription(forage);
+                      }
+                      setModalOpen(true);
+                    }}
+                  >
+                    Forage
+                  </button>
+                </div>
                 <div className="flex justify-center gap-4 mt-4">
                   <div className="mt-2 flex flex-col">
                     <h2 className="bg-black text-white rounded w-max mx-auto px-2">
@@ -812,6 +831,28 @@ function App() {
                             .name
                         : ""}
                     </span>
+                    <div className="text-sm flex gap-3">
+                      <div className="flex gap-1">
+                        <span className="font-bold">Nav DC:</span>
+                        <span>
+                          {terrainMatrix[selected[0]] != undefined
+                            ? getTerrainById(
+                                terrainMatrix[selected[0]][selected[1]]
+                              ).navigationDC
+                            : ""}
+                        </span>
+                      </div>
+                      <div className="flex gap-1">
+                        <span className="font-bold">Forage DC:</span>
+                        <span>
+                          {terrainMatrix[selected[0]] != undefined
+                            ? getTerrainById(
+                                terrainMatrix[selected[0]][selected[1]]
+                              ).forageDC
+                            : ""}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   {partyAction === "travel" ? (
                     <div className="mt-2 flex flex-col">
@@ -1543,7 +1584,7 @@ function App() {
                 </div>
                 <div className="max-w-lg mx-auto mt-4 flex flex-wrap">
                   {terrainDefinitions.map((terrain, i) => (
-                    <div className="w-64 h-36 rounded shadow">
+                    <div className="w-64 rounded shadow">
                       <div className="space-x-3 py-2 px-3 flex items-center justify-between">
                         <span className="w-max font-bold">
                           <input
@@ -1721,6 +1762,127 @@ function App() {
                             }}
                           />
                         </div>
+                      </div>
+                      <div>
+                        <span>Foraging</span>
+                        {terrain.forageTable != undefined ? (
+                          <div>
+                            <table className="w-full">
+                              <tbody>
+                                {terrain.forageTable.map((item, j) => (
+                                  <tr
+                                    className={`${
+                                      j % 2 === 0 ? "bg-gray-100" : ""
+                                    }`}
+                                  >
+                                    <th className="px-1">
+                                      <input
+                                        className="w-full bg-transparent "
+                                        value={item[0]}
+                                        type="text"
+                                        onChange={(e) => {
+                                          let newDefs = [...terrainDefinitions];
+                                          let newObj = { ...newDefs[i] };
+                                          let newTab = [...newObj.forageTable];
+                                          newTab[j][0] = e.target.value;
+                                          newObj.forageTable = newTab;
+                                          newDefs[i] = newObj;
+                                          setTerrainDefinitions(newDefs);
+                                          localStorage.setItem(
+                                            "terrainDefinitions",
+                                            JSON.stringify(newDefs)
+                                          );
+                                        }}
+                                      />
+                                    </th>
+                                    <td>
+                                      <input
+                                        className="w-full bg-transparent "
+                                        value={item[1]}
+                                        type="text"
+                                        onChange={(e) => {
+                                          let newDefs = [...terrainDefinitions];
+                                          let newObj = { ...newDefs[i] };
+                                          let newTab = [...newObj.forageTable];
+                                          newTab[j][1] = e.target.value;
+                                          newObj.forageTable = newTab;
+                                          newDefs[i] = newObj;
+                                          setTerrainDefinitions(newDefs);
+                                          localStorage.setItem(
+                                            "terrainDefinitions",
+                                            JSON.stringify(newDefs)
+                                          );
+                                        }}
+                                      />
+                                    </td>
+                                    <td>
+                                      <button
+                                        className="bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
+                                        onClick={() => {
+                                          let newDefs = [...terrainDefinitions];
+                                          let newObj = { ...newDefs[i] };
+                                          let newTab = [...newObj.forageTable];
+                                          newTab.splice(j, 1);
+                                          newObj.forageTable = newTab;
+                                          newDefs[i] = newObj;
+                                          setTerrainDefinitions(newDefs);
+                                          localStorage.setItem(
+                                            "terrainDefinitions",
+                                            JSON.stringify(newDefs)
+                                          );
+                                        }}
+                                      >
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          width="12"
+                                          height="12"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
+                                        </svg>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            <button
+                              className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded-b py-2"
+                              onClick={() => {
+                                let newDefs = [...terrainDefinitions];
+                                let newObj = { ...newDefs[i] };
+                                let newTab = [...newObj.forageTable];
+                                newTab.push(["", ""]);
+                                newObj.forageTable = newTab;
+                                newDefs[i] = newObj;
+                                setTerrainDefinitions(newDefs);
+                                localStorage.setItem(
+                                  "terrainDefinitions",
+                                  JSON.stringify(newDefs)
+                                );
+                              }}
+                            >
+                              <svg
+                                className="w-full mx-auto"
+                                clip-rule="evenodd"
+                                fill-rule="evenodd"
+                                stroke-linejoin="round"
+                                stroke-miterlimit="2"
+                                height={12}
+                                width={12}
+                                viewBox="0 0 24 24"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="m11 11h-7.25c-.414 0-.75.336-.75.75s.336.75.75.75h7.25v7.25c0 .414.336.75.75.75s.75-.336.75-.75v-7.25h7.25c.414 0 .75-.336.75-.75s-.336-.75-.75-.75h-7.25v-7.25c0-.414-.336-.75-.75-.75s-.75.336-.75.75z"
+                                  fill-rule="nonzero"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        ) : (
+                          ""
+                        )}
                       </div>
                     </div>
                   ))}
