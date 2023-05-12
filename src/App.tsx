@@ -222,6 +222,45 @@ function App() {
     }
   };
 
+  const importWeatherJson: React.ChangeEventHandler<HTMLInputElement> = (
+    event
+  ) => {
+    event.preventDefault();
+    if (event.target.files) {
+      let file = event.target.files[0];
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        if (e.target) {
+          const text = e.target.result;
+          if (typeof text === "string") {
+            let obj = JSON.parse(text);
+            setWinterTable(obj.winterTable);
+            setSpringTable(obj.springTable);
+            setSummerTable(obj.summerTable);
+            setAutumnTable(obj.autumnTable);
+            localStorage.setItem(
+              "winterTable",
+              JSON.stringify(obj.winterTable)
+            );
+            localStorage.setItem(
+              "springTable",
+              JSON.stringify(obj.springTable)
+            );
+            localStorage.setItem(
+              "summerTable",
+              JSON.stringify(obj.summerTable)
+            );
+            localStorage.setItem(
+              "autumnTable",
+              JSON.stringify(obj.autumnTable)
+            );
+          }
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
   const getTerrainById = (id: String) => {
     const terrains = terrainDefinitions.filter((terrain) => terrain.id === id);
     if (terrains[0]) {
@@ -2531,6 +2570,7 @@ function App() {
                 </button>
               </div>
               <h1 className="text-center font-bold mt-4 text-lg">Weather</h1>
+              <input type="file" onChange={importWeatherJson} />
               <div className="flex flex-wrap max-w-2xl mx-auto">
                 <div className="w-72 rounded shadow mx-auto mt-4">
                   <div className="space-x-3 py-2 px-3 flex items-center justify-between">
@@ -2538,304 +2578,47 @@ function App() {
                   </div>
                   <table className="w-full">
                     <tbody>
-                      {winterTable.map((winterWeather, i) => (
+                      {winterTable.map((weather, i) => (
                         <tr className={`${i % 2 === 0 ? "bg-gray-100" : ""}`}>
                           <th className="px-1 font-normal">
-                            <div className="flex items-center">
-                              <input
-                                className="w-12 bg-transparent "
-                                value={winterWeather.range[0]}
-                                type="number"
-                                onChange={(e) => {
-                                  let newTab = [...winterTable];
-                                  let newObj = { ...newTab[i] };
-                                  let prevObj = { ...newTab[i - 1] };
-                                  newObj.range[0] =
-                                    i == 0
-                                      ? 1
-                                      : +e.target.value >
-                                        winterTable[i - 1].range[0]
-                                      ? i == winterTable.length - 1 ||
-                                        +e.target.value <
-                                          winterTable[i + 1].range[0]
-                                        ? +e.target.value
-                                        : winterTable[i + 1].range[0] - 1
-                                      : winterTable[i - 1].range[0] + 1;
-                                  newObj.range[1] =
-                                    winterTable[i + 1] != undefined
-                                      ? winterTable[i + 1].range[0] - 1
-                                      : newObj.range[0];
-                                  newTab[i] = newObj;
-                                  if (prevObj != undefined) {
-                                    prevObj.range[1] = newObj.range[0] - 1;
-                                    newTab[i - 1] = prevObj;
-                                  }
-                                  setWinterTable(newTab);
-                                  localStorage.setItem(
-                                    "winterTable",
-                                    JSON.stringify(newTab)
-                                  );
-                                }}
-                              />
-                              {i < winterTable.length - 1 &&
-                              winterTable[i + 1].range[0] - 1 !==
-                                winterTable[i].range[0] ? (
-                                <span>-{winterTable[i].range[1]}</span>
-                              ) : (
-                                ""
-                              )}
-                            </div>
+                            <span>
+                              {weather.range[0]}
+                              {weather.range[0] !== weather.range[1]
+                                ? `-${weather.range[1]}`
+                                : ""}
+                            </span>
                           </th>
                           <td>
-                            <input
-                              className="w-full bg-transparent "
-                              value={winterWeather.name}
-                              type="text"
-                              onChange={(e) => {
-                                let newTab = [...winterTable];
-                                let newObj = { ...newTab[i] };
-                                newObj.name = e.target.value;
-                                newTab[i] = newObj;
-                                setWinterTable(newTab);
-                                localStorage.setItem(
-                                  "winterTable",
-                                  JSON.stringify(newTab)
-                                );
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              className="w-full bg-transparent "
-                              value={winterWeather.description}
-                              type="text"
-                              onChange={(e) => {
-                                let newTab = [...winterTable];
-                                let newObj = { ...newTab[i] };
-                                newObj.description = e.target.value;
-                                newTab[i] = newObj;
-                                setWinterTable(newTab);
-                                localStorage.setItem(
-                                  "winterTable",
-                                  JSON.stringify(newTab)
-                                );
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <button
-                              className="bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
-                              onClick={() => {
-                                let newDefs = [...winterTable];
-                                newDefs.splice(i, 1);
-                                setWinterTable(newDefs);
-                                localStorage.setItem(
-                                  "winterTable",
-                                  JSON.stringify(newDefs)
-                                );
-                              }}
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                              >
-                                <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
-                              </svg>
-                            </button>
+                            <span>{weather.name}</span>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  <button
-                    className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded-b py-2"
-                    onClick={() => {
-                      let newWinter = [...winterTable];
-                      let newWeather = { ...emptyWeather };
-                      if (winterTable.length > 0) {
-                        newWeather.range[0] =
-                          newWinter[newWinter.length - 1].range[1] + 1;
-                      }
-                      newWinter.push(newWeather);
-                      setWinterTable(newWinter);
-                      localStorage.setItem(
-                        "winterTable",
-                        JSON.stringify(newWinter)
-                      );
-                    }}
-                  >
-                    <svg
-                      className="w-full mx-auto"
-                      clip-rule="evenodd"
-                      fill-rule="evenodd"
-                      stroke-linejoin="round"
-                      stroke-miterlimit="2"
-                      height={12}
-                      width={12}
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="m11 11h-7.25c-.414 0-.75.336-.75.75s.336.75.75.75h7.25v7.25c0 .414.336.75.75.75s.75-.336.75-.75v-7.25h7.25c.414 0 .75-.336.75-.75s-.336-.75-.75-.75h-7.25v-7.25c0-.414-.336-.75-.75-.75s-.75.336-.75.75z"
-                        fill-rule="nonzero"
-                      />
-                    </svg>
-                  </button>
                 </div>
-
                 <div className="w-72 rounded shadow mx-auto mt-4">
                   <div className="space-x-3 py-2 px-3 flex items-center justify-between">
                     <span className="w-max font-bold">Spring</span>
                   </div>
                   <table className="w-full">
                     <tbody>
-                      {springTable.map((springWeather, i) => (
+                      {springTable.map((weather, i) => (
                         <tr className={`${i % 2 === 0 ? "bg-gray-100" : ""}`}>
                           <th className="px-1 font-normal">
-                            <div className="flex items-center">
-                              <input
-                                className="w-12 bg-transparent "
-                                value={springWeather.range[0]}
-                                type="number"
-                                onChange={(e) => {
-                                  let newTab = [...springTable];
-                                  let newObj = { ...newTab[i] };
-                                  let prevObj = { ...newTab[i - 1] };
-                                  newObj.range[0] =
-                                    i == 0
-                                      ? 1
-                                      : +e.target.value >
-                                        springTable[i - 1].range[0]
-                                      ? i == springTable.length - 1 ||
-                                        +e.target.value <
-                                          springTable[i + 1].range[0]
-                                        ? +e.target.value
-                                        : springTable[i + 1].range[0] - 1
-                                      : springTable[i - 1].range[0] + 1;
-                                  newObj.range[1] =
-                                    springTable[i + 1] != undefined
-                                      ? springTable[i + 1].range[0] - 1
-                                      : newObj.range[0];
-                                  newTab[i] = newObj;
-                                  if (prevObj != undefined) {
-                                    prevObj.range[1] = newObj.range[0] - 1;
-                                    newTab[i - 1] = prevObj;
-                                  }
-                                  setSpringTable(newTab);
-                                  localStorage.setItem(
-                                    "springTable",
-                                    JSON.stringify(newTab)
-                                  );
-                                }}
-                              />
-                              {i < springTable.length - 1 &&
-                              springTable[i + 1].range[0] - 1 !==
-                                springTable[i].range[0] ? (
-                                <span>-{springTable[i].range[1]}</span>
-                              ) : (
-                                ""
-                              )}
-                            </div>
+                            <span>
+                              {weather.range[0]}
+                              {weather.range[0] !== weather.range[1]
+                                ? `-${weather.range[1]}`
+                                : ""}
+                            </span>
                           </th>
                           <td>
-                            <input
-                              className="w-full bg-transparent "
-                              value={springWeather.name}
-                              type="text"
-                              onChange={(e) => {
-                                let newTab = [...springTable];
-                                let newObj = { ...newTab[i] };
-                                newObj.name = e.target.value;
-                                newTab[i] = newObj;
-                                setSpringTable(newTab);
-                                localStorage.setItem(
-                                  "springTable",
-                                  JSON.stringify(newTab)
-                                );
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              className="w-full bg-transparent "
-                              value={springWeather.description}
-                              type="text"
-                              onChange={(e) => {
-                                let newTab = [...springTable];
-                                let newObj = { ...newTab[i] };
-                                newObj.description = e.target.value;
-                                newTab[i] = newObj;
-                                setSpringTable(newTab);
-                                localStorage.setItem(
-                                  "springTable",
-                                  JSON.stringify(newTab)
-                                );
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <button
-                              className="bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
-                              onClick={() => {
-                                let newDefs = [...springTable];
-                                newDefs.splice(i, 1);
-                                setSpringTable(newDefs);
-                                localStorage.setItem(
-                                  "springTable",
-                                  JSON.stringify(newDefs)
-                                );
-                              }}
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                              >
-                                <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
-                              </svg>
-                            </button>
+                            <span>{weather.name}</span>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  <button
-                    className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded-b py-2"
-                    onClick={() => {
-                      let newSpring = [...springTable];
-                      let newWeather = { ...emptyWeather };
-                      if (springTable.length > 0) {
-                        newWeather.range[0] =
-                          newSpring[newSpring.length - 1].range[1] + 1;
-                      }
-                      newSpring.push(newWeather);
-                      setSpringTable(newSpring);
-                      localStorage.setItem(
-                        "springTable",
-                        JSON.stringify(newSpring)
-                      );
-                    }}
-                  >
-                    <svg
-                      className="w-full mx-auto"
-                      clip-rule="evenodd"
-                      fill-rule="evenodd"
-                      stroke-linejoin="round"
-                      stroke-miterlimit="2"
-                      height={12}
-                      width={12}
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="m11 11h-7.25c-.414 0-.75.336-.75.75s.336.75.75.75h7.25v7.25c0 .414.336.75.75.75s.75-.336.75-.75v-7.25h7.25c.414 0 .75-.336.75-.75s-.336-.75-.75-.75h-7.25v-7.25c0-.414-.336-.75-.75-.75s-.75.336-.75.75z"
-                        fill-rule="nonzero"
-                      />
-                    </svg>
-                  </button>
                 </div>
                 <div className="w-72 rounded shadow mx-auto mt-4">
                   <div className="space-x-3 py-2 px-3 flex items-center justify-between">
@@ -2843,151 +2626,23 @@ function App() {
                   </div>
                   <table className="w-full">
                     <tbody>
-                      {summerTable.map((summerWeather, i) => (
+                      {summerTable.map((weather, i) => (
                         <tr className={`${i % 2 === 0 ? "bg-gray-100" : ""}`}>
                           <th className="px-1 font-normal">
-                            <div className="flex items-center">
-                              <input
-                                className="w-12 bg-transparent "
-                                value={summerWeather.range[0]}
-                                type="number"
-                                onChange={(e) => {
-                                  let newTab = [...summerTable];
-                                  let newObj = { ...newTab[i] };
-                                  let prevObj = { ...newTab[i - 1] };
-                                  newObj.range[0] =
-                                    i == 0
-                                      ? 1
-                                      : +e.target.value >
-                                        summerTable[i - 1].range[0]
-                                      ? i == summerTable.length - 1 ||
-                                        +e.target.value <
-                                          summerTable[i + 1].range[0]
-                                        ? +e.target.value
-                                        : summerTable[i + 1].range[0] - 1
-                                      : summerTable[i - 1].range[0] + 1;
-                                  newObj.range[1] =
-                                    summerTable[i + 1] != undefined
-                                      ? summerTable[i + 1].range[0] - 1
-                                      : newObj.range[0];
-                                  newTab[i] = newObj;
-                                  if (prevObj != undefined) {
-                                    prevObj.range[1] = newObj.range[0] - 1;
-                                    newTab[i - 1] = prevObj;
-                                  }
-                                  setSummerTable(newTab);
-                                  localStorage.setItem(
-                                    "summerTable",
-                                    JSON.stringify(newTab)
-                                  );
-                                }}
-                              />
-                              {i < summerTable.length - 1 &&
-                              summerTable[i + 1].range[0] - 1 !==
-                                summerTable[i].range[0] ? (
-                                <span>-{summerTable[i].range[1]}</span>
-                              ) : (
-                                ""
-                              )}
-                            </div>
+                            <span>
+                              {weather.range[0]}
+                              {weather.range[0] !== weather.range[1]
+                                ? `-${weather.range[1]}`
+                                : ""}
+                            </span>
                           </th>
                           <td>
-                            <input
-                              className="w-full bg-transparent "
-                              value={summerWeather.name}
-                              type="text"
-                              onChange={(e) => {
-                                let newTab = [...summerTable];
-                                let newObj = { ...newTab[i] };
-                                newObj.name = e.target.value;
-                                newTab[i] = newObj;
-                                setSummerTable(newTab);
-                                localStorage.setItem(
-                                  "summerTable",
-                                  JSON.stringify(newTab)
-                                );
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              className="w-full bg-transparent "
-                              value={summerWeather.description}
-                              type="text"
-                              onChange={(e) => {
-                                let newTab = [...summerTable];
-                                let newObj = { ...newTab[i] };
-                                newObj.description = e.target.value;
-                                newTab[i] = newObj;
-                                setSummerTable(newTab);
-                                localStorage.setItem(
-                                  "summerTable",
-                                  JSON.stringify(newTab)
-                                );
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <button
-                              className="bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
-                              onClick={() => {
-                                let newDefs = [...summerTable];
-                                newDefs.splice(i, 1);
-                                setSummerTable(newDefs);
-                                localStorage.setItem(
-                                  "summerTable",
-                                  JSON.stringify(newDefs)
-                                );
-                              }}
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                              >
-                                <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
-                              </svg>
-                            </button>
+                            <span>{weather.name}</span>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  <button
-                    className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded-b py-2"
-                    onClick={() => {
-                      let newSummer = [...summerTable];
-                      let newWeather = { ...emptyWeather };
-                      if (summerTable.length > 0) {
-                        newWeather.range[0] =
-                          newSummer[newSummer.length - 1].range[1] + 1;
-                      }
-                      newSummer.push(newWeather);
-                      setSummerTable(newSummer);
-                      localStorage.setItem(
-                        "summerTable",
-                        JSON.stringify(newSummer)
-                      );
-                    }}
-                  >
-                    <svg
-                      className="w-full mx-auto"
-                      clip-rule="evenodd"
-                      fill-rule="evenodd"
-                      stroke-linejoin="round"
-                      stroke-miterlimit="2"
-                      height={12}
-                      width={12}
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="m11 11h-7.25c-.414 0-.75.336-.75.75s.336.75.75.75h7.25v7.25c0 .414.336.75.75.75s.75-.336.75-.75v-7.25h7.25c.414 0 .75-.336.75-.75s-.336-.75-.75-.75h-7.25v-7.25c0-.414-.336-.75-.75-.75s-.75.336-.75.75z"
-                        fill-rule="nonzero"
-                      />
-                    </svg>
-                  </button>
                 </div>
                 <div className="w-72 rounded shadow mx-auto mt-4">
                   <div className="space-x-3 py-2 px-3 flex items-center justify-between">
@@ -2995,151 +2650,23 @@ function App() {
                   </div>
                   <table className="w-full">
                     <tbody>
-                      {autumnTable.map((autumnWeather, i) => (
+                      {autumnTable.map((weather, i) => (
                         <tr className={`${i % 2 === 0 ? "bg-gray-100" : ""}`}>
                           <th className="px-1 font-normal">
-                            <div className="flex items-center">
-                              <input
-                                className="w-12 bg-transparent "
-                                value={autumnWeather.range[0]}
-                                type="number"
-                                onChange={(e) => {
-                                  let newTab = [...autumnTable];
-                                  let newObj = { ...newTab[i] };
-                                  let prevObj = { ...newTab[i - 1] };
-                                  newObj.range[0] =
-                                    i == 0
-                                      ? 1
-                                      : +e.target.value >
-                                        autumnTable[i - 1].range[0]
-                                      ? i == autumnTable.length - 1 ||
-                                        +e.target.value <
-                                          autumnTable[i + 1].range[0]
-                                        ? +e.target.value
-                                        : autumnTable[i + 1].range[0] - 1
-                                      : autumnTable[i - 1].range[0] + 1;
-                                  newObj.range[1] =
-                                    autumnTable[i + 1] != undefined
-                                      ? autumnTable[i + 1].range[0] - 1
-                                      : newObj.range[0];
-                                  newTab[i] = newObj;
-                                  if (prevObj != undefined) {
-                                    prevObj.range[1] = newObj.range[0] - 1;
-                                    newTab[i - 1] = prevObj;
-                                  }
-                                  setAutumnTable(newTab);
-                                  localStorage.setItem(
-                                    "autumnTable",
-                                    JSON.stringify(newTab)
-                                  );
-                                }}
-                              />
-                              {i < autumnTable.length - 1 &&
-                              autumnTable[i + 1].range[0] - 1 !==
-                                autumnTable[i].range[0] ? (
-                                <span>-{autumnTable[i].range[1]}</span>
-                              ) : (
-                                ""
-                              )}
-                            </div>
+                            <span>
+                              {weather.range[0]}
+                              {weather.range[0] !== weather.range[1]
+                                ? `-${weather.range[1]}`
+                                : ""}
+                            </span>
                           </th>
                           <td>
-                            <input
-                              className="w-full bg-transparent "
-                              value={autumnWeather.name}
-                              type="text"
-                              onChange={(e) => {
-                                let newTab = [...autumnTable];
-                                let newObj = { ...newTab[i] };
-                                newObj.name = e.target.value;
-                                newTab[i] = newObj;
-                                setAutumnTable(newTab);
-                                localStorage.setItem(
-                                  "autumnTable",
-                                  JSON.stringify(newTab)
-                                );
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              className="w-full bg-transparent "
-                              value={autumnWeather.description}
-                              type="text"
-                              onChange={(e) => {
-                                let newTab = [...autumnTable];
-                                let newObj = { ...newTab[i] };
-                                newObj.description = e.target.value;
-                                newTab[i] = newObj;
-                                setAutumnTable(newTab);
-                                localStorage.setItem(
-                                  "autumnTable",
-                                  JSON.stringify(newTab)
-                                );
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <button
-                              className="bg-transparent mr-2 hover:fill-white hover:bg-red-500 transition-all p-1 rounded"
-                              onClick={() => {
-                                let newDefs = [...autumnTable];
-                                newDefs.splice(i, 1);
-                                setAutumnTable(newDefs);
-                                localStorage.setItem(
-                                  "autumnTable",
-                                  JSON.stringify(newDefs)
-                                );
-                              }}
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                              >
-                                <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
-                              </svg>
-                            </button>
+                            <span>{weather.name}</span>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  <button
-                    className="w-full bg-transparent hover:fill-white hover:bg-green-500 transition-all rounded-b py-2"
-                    onClick={() => {
-                      let newAutumn = [...autumnTable];
-                      let newWeather = { ...emptyWeather };
-                      if (autumnTable.length > 0) {
-                        newWeather.range[0] =
-                          newAutumn[newAutumn.length - 1].range[1] + 1;
-                      }
-                      newAutumn.push(newWeather);
-                      setAutumnTable(newAutumn);
-                      localStorage.setItem(
-                        "autumnTable",
-                        JSON.stringify(newAutumn)
-                      );
-                    }}
-                  >
-                    <svg
-                      className="w-full mx-auto"
-                      clip-rule="evenodd"
-                      fill-rule="evenodd"
-                      stroke-linejoin="round"
-                      stroke-miterlimit="2"
-                      height={12}
-                      width={12}
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="m11 11h-7.25c-.414 0-.75.336-.75.75s.336.75.75.75h7.25v7.25c0 .414.336.75.75.75s.75-.336.75-.75v-7.25h7.25c.414 0 .75-.336.75-.75s-.336-.75-.75-.75h-7.25v-7.25c0-.414-.336-.75-.75-.75s-.75.336-.75.75z"
-                        fill-rule="nonzero"
-                      />
-                    </svg>
-                  </button>
                 </div>
               </div>
             </div>
