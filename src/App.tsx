@@ -900,7 +900,7 @@ function App() {
       }
     }
     if (regionsMatrix[0][0] === "") {
-      let item = localStorage.getItem("regionsMatrix");
+      let item = localStorage.getItem("regionMatrix");
       if (item != null) {
         setRegionsMatrix(JSON.parse(item));
       }
@@ -984,6 +984,13 @@ function App() {
           </button>
         </Dialog.Panel>
       </Dialog>
+      <button
+        onClick={() => {
+          console.log(regionsMatrix);
+        }}
+      >
+        TEST
+      </button>
       <Tab.Group>
         <Tab.List className={"w-max mx-auto -space-x-px"}>
           <Tab>
