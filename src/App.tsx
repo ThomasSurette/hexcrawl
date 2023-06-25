@@ -984,13 +984,6 @@ function App() {
           </button>
         </Dialog.Panel>
       </Dialog>
-      <button
-        onClick={() => {
-          console.log(regionsMatrix);
-        }}
-      >
-        TEST
-      </button>
       <Tab.Group>
         <Tab.List className={"w-max mx-auto -space-x-px"}>
           <Tab>
@@ -1213,13 +1206,6 @@ function App() {
               ""
             )}
             <div className="flex justify-center">
-              <button
-                onClick={() => {
-                  console.log(destination);
-                }}
-              >
-                CLICK ME
-              </button>
               <div className="overflow-auto w-max my-6">
                 <div className="w-96 h-96 overflow-auto flex pl-[32px]">
                   {terrainMatrix.map((row, i) => (
